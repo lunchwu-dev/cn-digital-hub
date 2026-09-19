@@ -26,6 +26,16 @@ outputs/_verify/*.err.txt
 # ── 站点部署副本（与 portal/dist/ 逐字节一致的冗余拷贝）──
 outputs/deploy-site/
 
+# ── 公网发布用的静态站点副本（与 portal/dist/ 逐字节一致，不重复纳入）──
+portal-site/
+
+# ── 根目录临时文件（探针 / 诊断输出）────────────────────
+/_*.txt
+/_*.log
+/_*.png
+/_probe_site/
+/_cprof/
+
 # ── 运行时与本地环境 ──────────────────────────────────
 *.log
 logs/

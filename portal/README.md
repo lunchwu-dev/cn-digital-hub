@@ -19,6 +19,12 @@ node tests/shots.cjs   # 出图 17 张 + 路由抽点 + 375→1920 连续扫描(
 **离线打开**：`npm run build` 后直接双击 `dist/index.html` 即可运行，无需服务器。
 （`base: './'` + `rollupOptions.output.format='iife'` + 剥离 `type="module"`/`crossorigin` 的插件共同保证这一点。）
 
+**本地 HTTP 预览**：`npm start`（即 `node server.mjs`，零依赖静态服务，读 `PORT` 环境变量、绑 `0.0.0.0`）。
+
+> **发布到公网时不要用这条 Node 服务**。平台发布沙箱里 `node` 型 http-service 会全部返回 404，必须走 `static` 型：
+> 把 `dist/` 复制成独立目录（如 `portal-site/`），以 `language:"static"` + `entryHtml:"index.html"` 发布。
+> 判据是发布结果里的 `deployedAs` 字段：`"web-page"` 才代表走平台内置静态服务。详见 `outputs/04-delivery-notes.md`。
+
 > 冒烟测试依赖共享目录里的 jsdom，**运行前需设**：
 > `set NODE_PATH=C:\Users\uuzz\.workbuddy\binaries\node\workspace\node_modules`
 > 否则 `require('jsdom')` 直接报错、进程以退出码 1 结束。
