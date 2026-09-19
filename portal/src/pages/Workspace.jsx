@@ -1,29 +1,22 @@
 /**
- * 工作台 —— 工具导航（服务目录） / 组织速查 / 需求提交
+ * 工作台 —— 工具导航（服务目录） / 组织速查
  * 工具导航是本产品的高价值模块：每张卡都有 Owner 与状态，是「服务目录」而非链接墙。
+ *
+ * P2-1 清理：原地删除重构前遗留的死代码 `DemandView`（约 620 行，含一份与
+ * pages/DemandNew.jsx 完全重复的评分引擎 D1–D5 / brdMissing / lightMissing /
+ * agentAdvice）。该组件全库无 import（grep 确认），「需求提交」已拆为
+ * 一级页 #/demand + 二级页 #/demand/new。随组件一并移除的还有它专用的
+ * imports（DatePicker / Segmented / Checkbox / PlusOutlined / CheckOutlined、
+ * 仅它使用的一批 demand / brd mock 常量、以及 CompletenessBar / ScaleChips /
+ * BrdAssistantCard / DemandRecentList 组件）。OrgView 导出保留（pages/Org.jsx 依赖）。
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Tabs, Input, Button, Space, Table, Modal, Form, Select, App as AntApp, Typography } from 'antd';
-import {
-  SearchOutlined,
-  PlusOutlined,
-  KeyOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  SyncOutlined,
-  InboxOutlined,
-} from '@ant-design/icons';
-import {
-  toolGroups,
-  orgPeople,
-  demandTypes,
-  demandHistory,
-  demandStatusMap,
-  workspaceTabs,
-  META,
-} from '../data/mock';
+import { Input, Button, Space, Table, Modal, Form, Select, App as AntApp, Typography } from 'antd';
+import { SearchOutlined, KeyOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { toolGroups, orgPeople, personId, META } from '../data/mock';
 import { useT } from '../theme';
 import { Panel, Pill, ContentMeta, SectionTitle, InitialAvatar, StatusDot } from '../components/ui';
+import { go } from '../router';
 import { IconByName } from '../components/icons';
 
 const { Text } = Typography;
@@ -57,7 +50,7 @@ function ToolsView({ focusGroup }) {
     }
     setPermOpen(null);
     form.resetFields();
-    message.success('权限申请已提交，将进入需求提交列表跟进');
+    message.success('权限申请已提交，将进入「业务需求」列表跟进，可在顶部导航查看。');
   };
 
   return (
@@ -191,7 +184,8 @@ function ToolsView({ focusGroup }) {
 }
 
 /* ------------------------------ 组织速查 ------------------------------ */
-function OrgView() {
+/* 导出供一级栏目「组织速查」（#/org，pages/Org.jsx）复用 —— 组件不搬家，只把入口升为一级栏目。 */
+export function OrgView() {
   const c = useT();
   const [q, setQ] = useState('');
   const list = useMemo(() => {
@@ -249,177 +243,68 @@ function OrgView() {
           onChange={(e) => setQ(e.target.value)}
           style={{ maxWidth: 380 }}
         />
-        <Text style={{ fontSize: 12, color: c.text3 }}>
-          共 <span className="dp-num">{list.length}</span> 位成员 · 仅展示部门内公开信息
-        </Text>
+        <Space size={12} wrap>
+          <Text style={{ fontSize: 12, color: c.text3 }}>
+            共 <span className="dp-num">{list.length}</span> 位成员 · 仅展示部门内公开信息
+          </Text>
+          {/* 标签反查页入口：反查页是二级页，从组织速查进入符合用户心智（不新增一级 Tab） */}
+          <Button type="link" size="small" style={{ padding: 0 }} onClick={() => go('#/workspace/tags')}>
+            浏览全部标签 →
+          </Button>
+        </Space>
       </div>
       <Panel style={{ overflow: 'hidden' }}>
-        <Table className="dp-table-compact" rowKey="email" columns={columns} dataSource={list} pagination={false} size="middle" scroll={{ x: 960 }} />
+        <Table
+          className="dp-table-compact"
+          rowKey="email"
+          columns={columns}
+          dataSource={list}
+          pagination={false}
+          size="middle"
+          scroll={{ x: 960 }}
+          onRow={(record) => ({
+            // 整行可点 → 个人主页；复用既有键盘可达范式（role=button + tabindex=0 + Enter/Space）
+            role: 'button',
+            tabIndex: 0,
+            style: { cursor: 'pointer' },
+            onClick: () => go('#/workspace/people/' + personId(record.email)),
+            onKeyDown: (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                go('#/workspace/people/' + personId(record.email));
+              }
+            },
+          })}
+        />
       </Panel>
     </div>
   );
 }
 
-/* ------------------------------ 需求提交 ------------------------------ */
-function DemandView() {
-  const c = useT();
-  const { message } = AntApp.useApp();
-  const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState(demandHistory);
-  const [form] = Form.useForm();
 
-  const submit = async () => {
-    let v;
-    try {
-      v = await form.validateFields();
-    } catch {
-      return; // 校验失败由 Form 自行提示
-    }
-    const typeLabel = (demandTypes.find((d) => d.value === v.type) || {}).label || v.type;
-    setRows((r) => [
-      {
-        id: 'REQ-2026-' + String(930 + r.length).slice(-3),
-        title: v.title,
-        type: typeLabel,
-        status: 'pending',
-        submitted: '2026-09-17',
-        assignee: '待分配',
-        note: v.detail ? v.detail.slice(0, 20) : '待处理',
-      },
-      ...r,
-    ]);
-    setOpen(false);
-    form.resetFields();
-    message.success('需求已提交，可在下方历史中跟踪状态');
-  };
 
-  const columns = [
-    {
-      title: '需求编号',
-      dataIndex: 'id',
-      width: 128,
-      render: (v) => <span className="dp-mono" style={{ fontSize: 12, color: c.text2 }}>{v}</span>,
-    },
-    { title: '标题', dataIndex: 'title', ellipsis: true, render: (v) => <span style={{ color: c.ink, fontWeight: 500 }}>{v}</span> },
-    { title: '类型', dataIndex: 'type', width: 156, render: (v) => <Pill semantic="neutral">{v}</Pill> },
-    { title: '处理人', dataIndex: 'assignee', width: 96, render: (v) => <span style={{ color: c.text2 }}>{v}</span> },
-    {
-      title: '提交时间',
-      dataIndex: 'submitted',
-      width: 116,
-      render: (v) => <span className="dp-num" style={{ color: c.text2 }}>{v}</span>,
-    },
-    { title: '备注', dataIndex: 'note', width: 180, ellipsis: true, render: (v) => <span style={{ color: c.text3, fontSize: 12 }}>{v}</span> },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 108,
-      render: (v) => {
-        const m = demandStatusMap[v] || demandStatusMap.pending;
-        return <Pill semantic={m.semantic} dot>{m.label}</Pill>;
-      },
-    },
-  ];
-
-  const stats = [
-    { key: 'pending', label: '待处理', icon: <InboxOutlined />, semantic: 'neutral' },
-    { key: 'inprogress', label: '进行中', icon: <SyncOutlined />, semantic: 'info' },
-    { key: 'done', label: '已完成', icon: <CheckCircleOutlined />, semantic: 'success' },
-  ];
-
-  return (
-    <div>
-      <div className="dp-grid dp-g3" style={{ marginBottom: 16 }}>
-        {stats.map((s) => {
-          const n = rows.filter((r) => r.status === s.key).length;
-          return (
-            <Panel key={s.key} style={{ padding: '14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ color: c.text3, fontSize: 18 }}>{s.icon}</span>
-                <div>
-                  <div style={{ fontSize: 12, color: c.text2 }}>{s.label}</div>
-                  <div className="dp-num" style={{ fontSize: 24, fontWeight: 500, color: c.ink, lineHeight: 1.2 }}>
-                    {n}
-                  </div>
-                </div>
-                <span style={{ marginLeft: 'auto' }}>
-                  <Pill semantic={s.semantic}>{s.label}</Pill>
-                </span>
-              </div>
-            </Panel>
-          );
-        })}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
-        <SectionTitle title="提交历史" desc="状态会随处理进展更新" />
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
-          提交新需求
-        </Button>
-      </div>
-
-      <Panel style={{ overflow: 'hidden' }}>
-        <Table className="dp-table-compact" rowKey="id" columns={columns} dataSource={rows} pagination={false} size="middle" scroll={{ x: 1000 }} />
-      </Panel>
-
-      <Modal
-        open={open}
-        title="提交新需求"
-        onCancel={() => setOpen(false)}
-        onOk={submit}
-        okText="提交"
-        cancelText="取消"
-        destroyOnHidden
-        getContainer={false}
-      >
-        <Form form={form} layout="vertical" className="dp-form" requiredMark={false}>
-          <Form.Item name="title" label="需求标题" rules={[{ required: true, message: '请填写需求标题' }, { min: 4, message: '至少 4 个字' }]}>
-            <Input placeholder="例如：申请生产库只读权限：库存服务" />
-          </Form.Item>
-          <Form.Item name="type" label="需求类型" rules={[{ required: true, message: '请选择需求类型' }]}>
-            <Select placeholder="请选择" options={demandTypes} />
-          </Form.Item>
-          <Form.Item name="detail" label="背景与期望" rules={[{ required: true, message: '请填写背景与期望' }, { min: 10, message: '请至少写 10 个字，便于受理' }]}>
-            <Input.TextArea rows={4} placeholder="说明背景、使用场景与期望的完成时间" />
-          </Form.Item>
-          <Form.Item name="contact" label="联系方式（可选）">
-            <Input placeholder="企微 / 邮箱，便于处理人联系你" />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </div>
-  );
-}
-
+/**
+ * 工作台 —— 退回纯工具导航（02b §A.1 / §C.4）
+ * 「组织速查」与「业务需求」已升为一级栏目（#/org、#/demand），
+ * 因此本页移除 Tabs，直接渲染 ToolsView，只保留「工具服务目录」单一职能。
+ * 导出名 `Workspace` 与 renderRoute 的调用契约保持不变（仍接收 route prop 以支持工具分组深链）。
+ */
 export default function Workspace({ route }) {
   const c = useT();
-  const validTabs = workspaceTabs.map((t) => t.key);
-  const initial = route && validTabs.includes(route.sub) ? route.sub : 'tools';
-  const [tab, setTab] = useState(initial);
-
-  // 支持深链：#/workspace/<tab>[/<groupKey>]
-  useEffect(() => {
-    if (route && validTabs.includes(route.sub)) setTab(route.sub);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route && route.sub]);
-
-  const items = [
-    { key: 'tools', label: '工具导航', children: <ToolsView focusGroup={tab === 'tools' ? route && route.id : undefined} /> },
-    { key: 'org', label: '组织速查', children: <OrgView /> },
-    { key: 'demand', label: '需求提交', children: <DemandView /> },
-  ];
+  // 支持深链：#/workspace/tools/<groupKey> 直接定位到具体工具分组
+  const focusGroup = route && route.sub === 'tools' ? route.id : undefined;
 
   return (
     <div className="dp-shell">
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500, color: c.ink, letterSpacing: '-0.01em' }}>工作台</h1>
-          <span style={{ fontSize: 14, color: c.text2 }}>工具服务目录、组织速查与需求受理</span>
+          <span style={{ fontSize: 14, color: c.text2 }}>工具服务目录</span>
         </div>
         <ContentMeta owner="SRE 组 · 何嘉 / 内容运营 · 孙玥" updated={META.updated} style={{ marginTop: 10 }} />
       </div>
 
-      <Tabs activeKey={tab} onChange={setTab} items={items} />
+      <ToolsView focusGroup={focusGroup} />
 
       <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: c.text3 }}>
         <ClockCircleOutlined /> 每个工具都有明确 Owner 与运行状态，处于「维护中 / 降级」的工具请先联系 Owner 再使用。

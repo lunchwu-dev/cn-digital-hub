@@ -267,8 +267,10 @@ export function BrandSymbol({ size = 40, color, muted = false }) {
   );
 }
 
-/** 首字母头像（中性灰底，无头像菜单 / 无已读态） */
-export function InitialAvatar({ name, size = 32 }) {
+/** 首字母头像（中性灰底，无头像菜单 / 无已读态）
+    fontSize 可选：默认 null → 走既有 size<=28?12:14 推导（向后兼容，不改既有调用）。
+    56px 大尺寸下既有推导会得 14px 偏小，个人页页头传 fontSize={20}。 */
+export function InitialAvatar({ name, size = 32, fontSize = null }) {
   const c = useT();
   return (
     <span
@@ -279,7 +281,7 @@ export function InitialAvatar({ name, size = 32 }) {
         background: c.page,
         border: `1px solid ${c.border}`,
         color: c.text2,
-        fontSize: size <= 28 ? 12 : 14,
+        fontSize: fontSize != null ? fontSize : size <= 28 ? 12 : 14,
         fontWeight: 500,
         display: 'inline-flex',
         alignItems: 'center',
@@ -309,6 +311,679 @@ export function StatusDot({ semantic = 'neutral', size = 8 }) {
   );
 }
 
+/* ==========================================================================
+   标签体系三件套：TagChip / MaturityAxis / TagMatrix
+   规范来源：outputs/p2-design-system.md B/C/D 节。
+   约束：零硬编码色值（一律 useT() 取 token）；两轴靠「蓝 vs 灰 + ◈ vs ◇」
+   区分而非新色相；实证度 4 档是品牌蓝单色阶，坚决不做红黄绿。
+   ========================================================================== */
+
+/** 自评兴趣度 4 级文案（措辞落在「兴趣—投入—意愿」语义域，全程无「擅长/精通/掌握」） */
+const SELF_RATING_COPY = {
+  curious: '有点好奇',
+  following: '持续关注',
+  practicing: '在项目中用过',
+  advocating: '主动投入',
+};
+const SELF_RATING_ORDER = ['curious', 'following', 'practicing', 'advocating'];
+
+/** 实证度 4 档文案与档位序号（v0.4 2.3：none 由「暂无实证」改为「暂无公开贡献」） */
+const EVIDENCE_COPY = {
+  none: '暂无公开贡献',
+  emerging: '有初步产出',
+  established: '有稳定的产出',
+  authoritative: '有沉淀与影响力',
+};
+const EVIDENCE_ORDER = ['none', 'emerging', 'established', 'authoritative'];
+
+/** 轴前缀几何符（形状级冗余，供色盲用户区分两轴） */
+const AXIS_GLYPH = { domain: '◈', capability: '◇' };
+
+/**
+ * MaturityAxis —— 双轴成熟度条（本体系最关键的组件）
+ * 承载「双轴不合成」这一核心决策：自评 = 圆形点阵（主观、可打点），
+ * 实证 = 分段胶囊条（客观、系统算）。**形状不同，故物理上不可相加。**
+ *
+ * props:
+ *   selfRating      'curious'|'following'|'practicing'|'advocating'
+ *   evidenceTier    'none'|'emerging'|'established'|'authoritative'
+ *   variant         'compact'（默认，TagMatrix 内）| 'expanded'（个人页主标签）
+ *   recentCount     近 12 月证据条数（等宽数字，仅此处 + historicalCount + 3/9）
+ *   historicalCount 超窗历史贡献条数（仅 expanded 显示）
+ *   latestCount / totalCount  回望计数（'3/9 条' 形式，仅 expanded 显示）
+ *   extraText       hover 时原地追加的文案（如「 · 近 12 月 3 条」），不换行
+ */
+export function MaturityAxis({
+  selfRating = 'curious',
+  evidenceTier = 'none',
+  variant = 'compact',
+  recentCount,
+  historicalCount,
+  latestCount,
+  totalCount,
+  extraText,
+}) {
+  const c = useT();
+  const expanded = variant === 'expanded';
+
+  const tierIdx = Math.max(0, EVIDENCE_ORDER.indexOf(evidenceTier));
+  // 自评与实证都取「已达成级数」（1..4）
+  const selfIdx = Math.max(0, SELF_RATING_ORDER.indexOf(selfRating)) + 1;
+  const evIdx = tierIdx + 1;
+  // 吹牛态：自评 ≥ practicing（3 级）且实证 0 —— 诚实并列，不隐藏、不惩罚
+  const boast = selfIdx >= 3 && evidenceTier === 'none';
+
+  // —— 尺寸（两档只改尺寸，绝不改语义）——
+  const dotSize = expanded ? 11 : 7;
+  const dotGap = expanded ? 6 : 4;
+  const trackH = expanded ? 8 : 6;
+  const trackW = expanded ? 160 : 64;
+  const segGap = expanded ? 3 : 2;
+  const pointSize = expanded ? 15 : 13;
+  const copySize = expanded ? 15 : 13;
+  // 4 档填充色（单色阶）；空槽用 c.border（读起来像「凹槽」而不是「占位」）
+  const fillColor = [c.brandStep1, c.brandStep2, c.brandStep3, c.brand][tierIdx] || c.brand;
+
+  // —— 自评圆点阵 ——
+  const dots = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: dotGap, flex: '0 0 auto' }}>
+      {[1, 2, 3, 4].map((lv) => {
+        const on = lv <= selfIdx;
+        return (
+          <span
+            key={lv}
+            style={{
+              width: dotSize,
+              height: dotSize,
+              borderRadius: 999,
+              boxSizing: 'border-box',
+              // 已达 = 品牌蓝实心；未达 = 空心 + brandBorder 描边（「位置留好但没填」）
+              background: on ? c.brand : 'transparent',
+              border: on ? 'none' : `1.5px solid ${c.brandBorder}`,
+            }}
+          />
+        );
+      })}
+    </span>
+  );
+
+  // —— 实证分段胶囊条 ——
+  // 4 段等分（25/50/75/100%），不按分数比例（按比例会造出「绩效分」的横向比较读法）。
+  // 段间透明缝；吹牛态改虚线描边空槽（同宽同高，不缩不涨）。
+  const track = boast ? (
+    <span
+      style={{
+        display: 'inline-block',
+        width: trackW,
+        height: trackH,
+        borderRadius: 999,
+        border: `1px dashed ${c.dashedBorder}`,
+        background: 'transparent',
+        boxSizing: 'border-box',
+        flex: '0 0 auto',
+      }}
+    />
+  ) : (
+    <span
+      style={{
+        display: 'inline-flex',
+        width: trackW,
+        height: trackH,
+        gap: segGap,
+        flex: '0 0 auto',
+      }}
+    >
+      {[1, 2, 3, 4].map((lv) => (
+        <span
+          key={lv}
+          style={{
+            flex: '1 1 0',
+            height: '100%',
+            borderRadius: 999,
+            background: lv <= evIdx ? fillColor : c.border,
+          }}
+        />
+      ))}
+    </span>
+  );
+
+  // v0.4 2.3：措辞由「暂无实证」改为「暂无公开贡献」——
+  //   不是「没有实证」，而是「没有**公开**贡献被系统统计到」；也避免与「实证度」名词自我循环。
+  const evidenceCopy = boast ? '仅自评 · 暂无公开贡献' : EVIDENCE_COPY[evidenceTier] || EVIDENCE_COPY.none;
+  const evidenceCopyColor = boast ? c.text3 : c.text2;
+
+  // ★ v0.4 (e) 视觉噪音按 selfIdx 分档（仅改**渲染分支**，不动 :374 的 boast 判定语义）：
+  //   selfIdx <= 2 && tier==='none' → 收轨：不渲染实证行(track)，只留一行极淡 text3 的「暂无公开贡献」。
+  //                                 这类标签本就没声称什么，画一条空槽纯属噪音（噪音主体）。
+  //   selfIdx >= 3 && tier==='none' → 保留完整双行（点阵 + 虚线空槽 + 文案 + 提示行）= 吹牛态，
+  //                                 诚实并列不能消解。
+  //   ⚠️ 「吹牛态」判定仍是 boast（:374），collapse 只是它的补集，二者互斥、不可混淆。
+  const collapse = !boast && evidenceTier === 'none' && selfIdx <= 2;
+
+  // —— 回望计数（仅 expanded，等宽数字，'3/9 条' 形式）——
+  // 严禁用于中文标签名/中文文案：Roboto Mono 无中文字形，会触发回退、破坏「数字 mono」切分。
+  const hasRecall = expanded && totalCount != null;
+  const recall = hasRecall ? (
+    <span className="dp-num" style={{ fontSize: 12, color: c.text3, flex: '0 0 auto' }}>
+      {latestCount}/{totalCount} 条
+    </span>
+  ) : null;
+
+  const recallLine = expanded ? (
+    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      {recentCount != null ? (
+        <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
+          近 12 月 {recentCount} 条
+        </span>
+      ) : null}
+      {historicalCount != null && historicalCount > 0 ? (
+        <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
+          历史贡献 {historicalCount} 条
+        </span>
+      ) : null}
+      {recall}
+    </div>
+  ) : null;
+
+  // —— 紧凑态：不设行首标签，改置于图形下方 10px ——
+  if (!expanded) {
+    // 收轨态（selfIdx<=2 && tier==='none'）：不渲染实证行(track)，只留一行极淡 text3 文案
+    if (collapse) {
+      return (
+        <div>
+          {/* L2 自评行：点阵 + 文案 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            {dots}
+            <span style={{ fontSize: copySize, color: c.text2, whiteSpace: 'nowrap' }}>{SELF_RATING_COPY[selfRating]}</span>
+          </div>
+          {/* 收轨淡文案：无图形，12px text3（噪音收敛主体） */}
+          <div style={{ marginTop: 4, fontSize: 12, color: c.text3, lineHeight: 1.5, minWidth: 0 }}>暂无公开贡献</div>
+        </div>
+      );
+    }
+    return (
+      <div>
+        {/* L2 自评行：点阵 + 文案 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          {dots}
+          <span style={{ fontSize: copySize, color: c.text2, whiteSpace: 'nowrap' }}>{SELF_RATING_COPY[selfRating]}</span>
+        </div>
+        {/* L3 实证行：条 + 文案（hover 时原地追加 extraText，不换行） */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, minWidth: 0 }}>
+          {track}
+          <span
+            style={{
+              fontSize: copySize,
+              color: evidenceCopyColor,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minWidth: 0,
+            }}
+          >
+            {evidenceCopy}
+            {extraText ? <span style={{ fontSize: 12, color: c.text3 }}>{extraText}</span> : null}
+          </span>
+        </div>
+        {/* L4 一级提示行（仅吹牛态）—— v0.4 2.4：第三人称 + 召回入口（不得出现「你」） */}
+        {boast ? (
+          <div
+            style={{
+              marginTop: 6,
+              paddingTop: 6,
+              borderTop: `1px solid ${c.border}`,
+              fontSize: 11,
+              color: c.text3,
+              lineHeight: 1.5,
+            }}
+          >
+            这项仅有自评，系统暂未找到对应的公开产出。
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  // —— 放大态：两列制（列 1 行首轴标 40px 固定，列 2 图形 + 文案从 x=52 起排）——
+  const rowLabel = (t) => (
+    <span style={{ width: 40, flex: '0 0 auto', fontSize: 10, color: c.text3 }}>{t}</span>
+  );
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {rowLabel('兴趣')}
+        {dots}
+        <span style={{ fontSize: copySize, color: c.text2, whiteSpace: 'nowrap' }}>{SELF_RATING_COPY[selfRating]}</span>
+      </div>
+      {/* 实证行：收轨态（selfIdx<=2 && none）不画图形，只留淡文案；吹牛态/有实证态照常画 track */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+        {rowLabel('实证')}
+        {collapse ? null : track}
+        <span style={{ fontSize: copySize, color: collapse ? c.text3 : evidenceCopyColor, whiteSpace: 'nowrap' }}>
+          {collapse ? '暂无公开贡献' : evidenceCopy}
+        </span>
+      </div>
+      {recallLine}
+      {boast ? (
+        <div
+          style={{
+            marginTop: 8,
+            paddingTop: 8,
+            borderTop: `1px solid ${c.border}`,
+            fontSize: 12,
+            color: c.text3,
+            lineHeight: 1.5,
+          }}
+        >
+          这项仅有自评，系统暂未找到对应的公开产出。
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * TagChip —— 标签胶囊（带轴语义）
+ * 不复用 Pill：Pill 的 semantic 绑定「运行状态」语义域，硬塞 axis 会耦合两套语义系统。
+ * 复用既有 .dp-chip 类与 ChannelTag 的中性画法（能力轴）。
+ *
+ * props: label / axis('domain'|'capability') / primary / status('active'|'deprecated'|'merged')
+ *        originLabel（merged 用，显示「原『旧名』」）/ selected / disabled / onClick
+ *        单行裁剪由调用方在容器上控制（TagMatrix 内卡片强制单行）
+ */
+export function TagChip({
+  label,
+  axis = 'domain',
+  primary = false,
+  status = 'active',
+  originLabel,
+  selected = false,
+  disabled = false,
+  onClick,
+  style,
+}) {
+  const c = useT();
+  const isDomain = axis === 'domain';
+
+  // 轴色：领域 = 品牌蓝系（检索主轴）；能力 = 中性灰系（跨领域的可迁移做法，退后一档）
+  const axisBg = isDomain ? c.brandSubtle : c.page;
+  const axisBorder = isDomain ? c.brandBorder : c.border;
+  const axisColor = isDomain ? c.brand : c.text2;
+  const axisWeight = isDomain ? 500 : 400;
+  const glyph = AXIS_GLYPH[axis];
+
+  const clickable = typeof onClick === 'function' && !disabled;
+
+  const base = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    fontSize: 12,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    maxWidth: '100%',
+    ...style,
+  };
+
+  const onKey = (e) => {
+    if (!clickable) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick(e);
+    }
+  };
+
+  // 复用设计系统 .dp-chip 形态（22px 高 / 0 10px 内距 / 999px 圆角 / 12px 字 /
+  // gap 4px）——该 class 只含结构属性、不含任何颜色字面量，颜色一律走上面的 token。
+  // 所有分支（merged 除外，其内层 TagChip 自带）在根节点挂 className="dp-chip"。
+
+  // —— 已合并：渲染 target 的 active chip + 紧跟「原『旧名』」角标（永远可见）——
+  if (status === 'merged') {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
+        <TagChip label={label} axis={axis} primary={primary} selected={selected} disabled={disabled} onClick={onClick} />
+        {originLabel ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              height: 18,
+              padding: '0 8px',
+              borderRadius: 999,
+              background: c.page,
+              border: `1px solid ${c.border}`,
+              color: c.text3,
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+              flex: '0 0 auto',
+            }}
+          >
+            原「{originLabel}」
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+
+  // —— 已停用：虚线描边 + 去前缀 + 后缀「已停用」+ 左端 3px 轴色竖条 ——
+  if (status === 'deprecated') {
+    return (
+      <span
+        role={clickable ? 'button' : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onClick={clickable ? onClick : undefined}
+        onKeyDown={onKey}
+        className="dp-chip"
+        style={{
+          ...base,
+          height: 22,
+          padding: '0 10px',
+          paddingLeft: 7,
+          background: c.page,
+          border: `1px dashed ${c.dashedBorder}`,
+          borderLeft: `3px solid ${axisColor}`,
+          color: c.text3,
+          fontWeight: 400,
+          overflow: 'hidden',
+          cursor: clickable ? 'pointer' : 'default',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            marginLeft: 4,
+            paddingLeft: 5,
+            borderLeft: `1px solid ${c.border}`,
+            fontSize: 10,
+            flex: '0 0 auto',
+          }}
+        >
+          已停用
+        </span>
+      </span>
+    );
+  }
+
+  // —— disabled：中性灰底 + 实线描边 + textDisabled 字（禁用态装饰，非正文）——
+  if (disabled) {
+    return (
+      <span
+        className="dp-chip"
+        style={{
+          ...base,
+          height: 22,
+          padding: '0 10px',
+          background: c.page,
+          border: `1px solid ${c.border}`,
+          color: c.textDisabled,
+          fontWeight: 400,
+          cursor: 'not-allowed',
+          overflow: 'hidden',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{glyph} {label}</span>
+      </span>
+    );
+  }
+
+  // —— 主标签：轴底色不变 + 1.5px brand 描边 + 前缀实心化 + 24px 高 + 右侧「主」字标 ——
+  //    不用品牌黄（黄是「时间性标记」语义，主标签是「长期属性」），不反白填充。
+  if (primary) {
+    return (
+      <span
+        role={clickable ? 'button' : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onClick={clickable ? onClick : undefined}
+        onKeyDown={onKey}
+        className="dp-chip"
+        style={{
+          ...base,
+          height: 24,
+          padding: '0 12px',
+          background: axisBg,
+          border: `1.5px solid ${c.brand}`,
+          color: axisColor,
+          fontWeight: 500,
+          cursor: clickable ? 'pointer' : 'default',
+          overflow: 'hidden',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {isDomain ? '◆' : '◈'} {label}
+        </span>
+        <span style={{ marginLeft: 4, fontSize: 9, fontWeight: 500, color: c.brand, flex: '0 0 auto' }}>主</span>
+      </span>
+    );
+  }
+
+  // —— 已选：底色加深（领域 → brandStep1）+ inset 轴色环 + 前缀实心化 + 后端 × 移除符 ——
+  if (selected) {
+    return (
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={onKey}
+        className="dp-chip"
+        style={{
+          ...base,
+          height: 22,
+          padding: '0 10px',
+          background: isDomain ? c.brandStep1 : c.page,
+          border: `1px solid ${axisBorder}`,
+          boxShadow: `inset 0 0 0 1.5px ${axisColor}`,
+          color: axisColor,
+          fontWeight: axisWeight,
+          cursor: 'pointer',
+          overflow: 'hidden',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {isDomain ? '◆' : '◈'} {label}
+        </span>
+        <span style={{ marginLeft: 2, fontSize: 12, color: c.text3, flex: '0 0 auto' }}>×</span>
+      </span>
+    );
+  }
+
+  // —— active（默认）——
+  return (
+    <span
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? onClick : undefined}
+      onKeyDown={onKey}
+      className="dp-chip"
+      style={{
+        ...base,
+        height: 22,
+        padding: '0 10px',
+        background: axisBg,
+        border: `1px solid ${axisBorder}`,
+        color: axisColor,
+        fontWeight: axisWeight,
+        cursor: clickable ? 'pointer' : 'default',
+        overflow: 'hidden',
+      }}
+    >
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {glyph} {label}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * TagMatrix —— 标签矩阵容器
+ * 单 Panel 内分两区（领域轴在上、能力轴在下），不拆两块 Panel：
+ * 两轴是「一个人的两个属性维度」，必须并排看；拆开会被读成「两份独立资料」。
+ *
+ * props: tags[{ tag, selfRating, evidenceTier, recentCount, historicalCount }]
+ *        empty（bool，整人无标签）/ onTagClick(tagId)
+ */
+export function TagMatrix({ tags = [], empty = false, onTagClick }) {
+  const c = useT();
+
+  // 整人无标签 → 整体替换为 PageEmpty（两个分区都不渲染）
+  if (empty || tags.length === 0) {
+    return (
+      <Panel>
+        <PageEmpty
+          compact
+          title="暂无标签"
+          desc="该成员尚未选择任何标签。标签用于让同事找到你的领域与能力——可在组织速查里发起补充。"
+        />
+      </Panel>
+    );
+  }
+
+  const domain = tags.filter((t) => t.tag && t.tag.axis === 'domain');
+  const capability = tags.filter((t) => t.tag && t.tag.axis === 'capability');
+  const recentTotal = tags.reduce((s, t) => s + (t.recentCount || 0), 0);
+
+  // 分区标题条：高 32px / cardHeadBg 底 / 6px 圆角 / 13px 500 text2 / 左 padding 10px / 右侧同轴数量
+  const groupBar = (label, n, key) => (
+    <div
+      key={key}
+      style={{
+        height: 32,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        padding: '0 10px',
+        background: c.cardHeadBg,
+        borderRadius: 6,
+        fontSize: 13,
+        fontWeight: 500,
+        color: c.text2,
+      }}
+    >
+      <span>{label}</span>
+      <span className="dp-num" style={{ fontSize: 11, fontWeight: 400, color: c.text3 }}>
+        {n}
+      </span>
+    </div>
+  );
+
+  // 单张标签卡：标签名（单行裁剪）+ MaturityAxis 紧凑态
+  const tagCard = (t) => {
+    const clickable = typeof onTagClick === 'function';
+    const tClick = clickable ? () => onTagClick(t.tag.id) : undefined;
+    // 已停用 / 已合并的历史标签挂在某人身上时，**照常渲染**（不静默丢弃），
+    // 并带对应 status 视觉（虚线 / 「原『旧名』」角标）——规范 C.4：历史引用可审计。
+    const st = t.tag.status;
+    const isLegacy = st === 'deprecated' || st === 'merged';
+    return (
+      <Panel
+        key={t.tag.id}
+        hover
+        role={clickable ? 'button' : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onClick={tClick}
+        onKeyDown={(e) => {
+          if (!clickable) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            tClick();
+          }
+        }}
+        style={{
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          cursor: clickable ? 'pointer' : 'default',
+          minWidth: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+          {isLegacy ? (
+            <TagChip label={t.tag.label} axis={t.tag.axis} status={st} originLabel={t.tag.originLabel} style={{ maxWidth: '100%' }} />
+          ) : (
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: c.ink,
+                lineHeight: 1.4,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                minWidth: 0,
+              }}
+            >
+              {AXIS_GLYPH[t.tag.axis]} {t.tag.label}
+            </span>
+          )}
+          <span style={{ fontSize: 11, color: c.text3, flex: '0 0 auto' }}>
+            {t.tag.axis === 'domain' ? '领域' : '能力'}
+          </span>
+        </div>
+        <div style={{ marginTop: 4 }}>
+          <MaturityAxis
+            selfRating={t.selfRating}
+            evidenceTier={t.evidenceTier}
+            variant="compact"
+            recentCount={t.recentCount}
+          />
+        </div>
+      </Panel>
+    );
+  };
+
+  // 某轴无标签时分区不消失：标题条仍在，下方一行 12px text3 空态文案
+  const axisBlock = (key, label, list) => (
+    <div>
+      {groupBar(label, list.length, key)}
+      <div style={{ marginTop: 10 }}>
+        {list.length === 0 ? (
+          <div style={{ fontSize: 12, color: c.text3, padding: '2px 2px' }}>
+            {key === 'domain' ? '暂无领域标签' : '暂无能力标签'}
+          </div>
+        ) : (
+          <div className="dp-grid dp-g3 dp-grid--tight" style={{ alignItems: 'start' }}>
+            {list.map(tagCard)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <Panel>
+      <PanelHead
+        title="标签"
+        desc={`领域标签 ${domain.length} · 能力标签 ${capability.length}`}
+        extra={
+          <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
+            近 12 月实证 {recentTotal} 条
+          </span>
+        }
+      />
+      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {axisBlock('domain', '领域轴', domain)}
+        {axisBlock('capability', '能力类型轴', capability)}
+      </div>
+    </Panel>
+  );
+}
+
+/** 「→ 标签名」联动标注（贡献列表用，规格见 P2 文档 C.5）——整块不可点 */
+export function TagArrow({ label }) {
+  const c = useT();
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ fontSize: 12, color: c.text3 }}>→</span>
+      <TagChip label={label} axis="domain" />
+    </span>
+  );
+}
+
 export { Flex };
 
 /**
@@ -316,18 +991,31 @@ export { Flex };
  * 自建而非用 antd `Result`：当 status ∈ {404,403,500} 时 Result 会强制渲染内置彩色人物插画
  * 并忽略传入的 icon —— 那与本门户设计规范 ds-04「禁用彩色插画图标」直接冲突。
  */
-export function PageEmpty({ title, desc, extra, style }) {
+export function PageEmpty({ title, desc, extra, style, compact = false }) {
   const c = useT();
   return (
-    <div className="dp-empty" style={{ textAlign: 'center', padding: '72px 24px', ...style }}>
-      <BrandSymbol size={56} />
-      <div style={{ marginTop: 22, fontSize: 20, fontWeight: 500, color: c.ink, lineHeight: 1.5 }}>{title}</div>
+    <div
+      className="dp-empty"
+      style={{ textAlign: 'center', padding: compact ? '28px 16px' : '72px 24px', ...style }}
+    >
+      <BrandSymbol size={compact ? 36 : 56} />
+      <div
+        style={{
+          marginTop: compact ? 14 : 22,
+          fontSize: compact ? 16 : 20,
+          fontWeight: 500,
+          color: c.ink,
+          lineHeight: 1.5,
+        }}
+      >
+        {title}
+      </div>
       {desc ? (
         <div
           style={{
-            margin: '10px auto 0',
-            maxWidth: 580,
-            fontSize: 14,
+            margin: compact ? '8px auto 0' : '10px auto 0',
+            maxWidth: compact ? 460 : 580,
+            fontSize: compact ? 13 : 14,
             lineHeight: 1.75,
             color: c.text2,
           }}
@@ -336,7 +1024,17 @@ export function PageEmpty({ title, desc, extra, style }) {
         </div>
       ) : null}
       {extra ? (
-        <div style={{ marginTop: 24, display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>{extra}</div>
+        <div
+          style={{
+            marginTop: compact ? 14 : 24,
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          {extra}
+        </div>
       ) : null}
     </div>
   );

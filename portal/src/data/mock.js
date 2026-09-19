@@ -595,7 +595,7 @@ export const faqs = [
     id: 'faq-01',
     question: '如何申请生产环境数据库只读权限？',
     answer:
-      '在工作台的「需求提交」中提交权限申请，选择「数据权限 - 只读」类型，填写系统名与库名、用途与期限。审批人为该系统负责人与安全合规，一般 1 个工作日内完成。权限默认有效期 90 天，到期需重新申请。',
+      '在顶部导航「业务需求」里点「新增需求」提交权限申请，选择「数据权限 - 只读」类型，填写系统名与库名、用途与期限。审批人为该系统负责人与安全合规，一般 1 个工作日内完成。权限默认有效期 90 天，到期需重新申请。',
     category: '权限',
     helpful: 46,
     notHelpful: 3,
@@ -790,10 +790,594 @@ export const articles = {
 
 /* =============================== 工作台 =============================== */
 
+/* ======================================================================
+   统一 Digital 标签体系（词表 / 人×标签 / 实证度解算）
+   规范来源：outputs/p1-requirements.md B/C/D/E 节。
+   模型：2 条正交轴 —— 领域轴（业务/技术对象）× 能力类型轴（可迁移做法）。
+   互斥闸门 R3：同一个词字符串只能存在于一条轴（靠唯一 id 保证）。
+   ====================================================================== */
+
+/**
+ * TAG_DICT —— 受限词表（管理员维护）。
+ * 每条：{ id, label, axis, group, status, aliases[], mergedInto }
+ *   axis   ∈ 'domain' | 'capability'
+ *   status ∈ 'active' | 'deprecated' | 'merged'（三态，不得扩展）
+ *   aliases 用于把既有 mock 的 category / tags 映射到领域标签。
+ */
+export const TAG_DICT = [
+  /* —— 领域轴 · AI 与智能 —— */
+  { id: 'd-ai', label: 'AI 与智能', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: ['人工智能', 'AI'] },
+  { id: 'd-rag', label: 'RAG', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: [] },
+  { id: 'd-agent', label: 'Agent', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: ['智能体'] },
+  { id: 'd-vector', label: '向量检索', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: [] },
+  { id: 'd-prompt', label: '提示词工程', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: [] },
+  { id: 'd-llm-eval', label: '模型评测', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: [] },
+
+  /* —— 领域轴 · 业务系统域 —— */
+  { id: 'd-pos', label: '门店 POS', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['POS'] },
+  { id: 'd-selfcheckout', label: '自助结账', axis: 'domain', group: '业务系统域', status: 'active', aliases: [] },
+  { id: 'd-esl', label: '电子价签', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['价签'] },
+  { id: 'd-replenish', label: '智能补货', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['补货'] },
+  { id: 'd-member', label: '会员增长', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['会员'] },
+  { id: 'd-points', label: '会员积分', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['积分'] },
+  { id: 'd-miniapp', label: '会员小程序', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['小程序'] },
+  { id: 'd-ecommerce', label: '线上商城', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['电商', '电商平台'] },
+  { id: 'd-promo', label: '促销与优惠', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['促销', '交易'] },
+  { id: 'd-supply', label: '供应链数字化', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['供应链', '库存'] },
+  { id: 'd-store', label: '门店数字化', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['门店'] },
+  { id: 'd-app', label: '迪卡侬 App', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['App'] },
+  { id: 'd-crm', label: '会员与 CRM', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['CRM'] },
+  { id: 'd-order', label: '订单与履约', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['订单'] },
+
+  /* —— 领域轴 · 数据域 —— */
+  { id: 'd-dataplatform', label: '数据平台', axis: 'domain', group: '数据域', status: 'active', aliases: ['数据'] },
+  { id: 'd-tracking', label: '埋点', axis: 'domain', group: '数据域', status: 'active', aliases: ['埋点规范'] },
+  { id: 'd-metrics', label: '指标体系', axis: 'domain', group: '数据域', status: 'active', aliases: [] },
+  { id: 'd-realtime', label: '实时计算', axis: 'domain', group: '数据域', status: 'active', aliases: [] },
+  { id: 'd-warehouse', label: '数据仓库', axis: 'domain', group: '数据域', status: 'active', aliases: [] },
+  { id: 'd-bi', label: '经营看板', axis: 'domain', group: '数据域', status: 'active', aliases: ['BI'] },
+  { id: 'd-experiment', label: 'A/B 实验平台', axis: 'domain', group: '数据域', status: 'active', aliases: ['实验'] },
+  { id: 'd-dataquality', label: '数据质量', axis: 'domain', group: '数据域', status: 'active', aliases: [] },
+
+  /* —— 领域轴 · 平台与基础设施 —— */
+  { id: 'd-sso', label: 'SSO 统一身份', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['SSO', '平台'] },
+  { id: 'd-cicd', label: 'CI/CD 流水线', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: [] },
+  { id: 'd-observability', label: '可观测性', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['监控'] },
+  { id: 'd-grafana', label: 'Grafana 看板', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['Grafana'] },
+  { id: 'd-stability', label: '稳定性工程', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['稳定性'] },
+  { id: 'd-security', label: '安全与合规', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['安全', '合规', '权限', '审计'] },
+  { id: 'd-gateway', label: 'API 网关', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: [] },
+  { id: 'd-cloudnative', label: '云原生', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: [] },
+  { id: 'd-config', label: '配置与发布', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: [] },
+
+  /* —— 领域轴 · 组织与流程域 —— */
+  { id: 'd-demand', label: '需求管理', axis: 'domain', group: '组织与流程域', status: 'active', aliases: ['流程'] },
+  { id: 'd-docs', label: '知识沉淀', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
+  { id: 'd-collab', label: '跨部门协同', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
+  { id: 'd-design-system', label: '设计系统', axis: 'domain', group: '组织与流程域', status: 'active', aliases: ['设计规范', '设计令牌'] },
+  { id: 'd-onboarding', label: '新人上手', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
+  { id: 'd-ops-process', label: '研发流程', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
+  { id: 'd-content-ops', label: '内容运营', axis: 'domain', group: '组织与流程域', status: 'active', aliases: ['门户内容', '公告'] },
+  { id: 'd-portal', label: '内部门户', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
+
+  /* —— 领域轴 · 已废弃 / 已合并（用于展示 chip 的 4 种状态）—— */
+  {
+    id: 'd-ai-stack',
+    label: 'AI 技术栈',
+    axis: 'domain',
+    group: 'AI 与智能',
+    status: 'deprecated',
+    aliases: [],
+  },
+  {
+    id: 'd-agent-framework',
+    label: 'Agent 框架',
+    axis: 'domain',
+    group: 'AI 与智能',
+    status: 'merged',
+    aliases: [],
+    mergedInto: 'd-agent',
+  },
+
+  /* —— 能力类型轴 · 工程技术 —— */
+  { id: 'c-architecture', label: '系统架构', axis: 'capability', group: '工程技术', status: 'active', aliases: ['架构'] },
+  { id: 'c-perf', label: '性能优化', axis: 'capability', group: '工程技术', status: 'active', aliases: ['性能', '前端'] },
+  { id: 'c-backend', label: '后端工程', axis: 'capability', group: '工程技术', status: 'active', aliases: [] },
+  { id: 'c-frontend', label: '前端工程', axis: 'capability', group: '工程技术', status: 'active', aliases: [] },
+  { id: 'c-reliability', label: '可靠性设计', axis: 'capability', group: '工程技术', status: 'active', aliases: ['可靠性'] },
+  { id: 'c-testing', label: '测试与质量', axis: 'capability', group: '工程技术', status: 'active', aliases: ['测试'] },
+  { id: 'c-code-review', label: '代码评审', axis: 'capability', group: '工程技术', status: 'active', aliases: [] },
+  { id: 'c-security-eng', label: '安全工程', axis: 'capability', group: '工程技术', status: 'active', aliases: [] },
+
+  /* —— 能力类型轴 · 产品与设计 —— */
+  { id: 'c-product', label: '产品设计', axis: 'capability', group: '产品与设计', status: 'active', aliases: ['产品'] },
+  { id: 'c-ux', label: '交互设计', axis: 'capability', group: '产品与设计', status: 'active', aliases: ['设计'] },
+  { id: 'c-research', label: '用户研究', axis: 'capability', group: '产品与设计', status: 'active', aliases: [] },
+  { id: 'c-spec', label: '规范制定', axis: 'capability', group: '产品与设计', status: 'active', aliases: [] },
+  { id: 'c-content', label: '内容撰写', axis: 'capability', group: '产品与设计', status: 'active', aliases: [] },
+  { id: 'c-visual', label: '视觉表达', axis: 'capability', group: '产品与设计', status: 'active', aliases: [] },
+
+  /* —— 能力类型轴 · 数据与分析 —— */
+  { id: 'c-data-eng', label: '数据工程', axis: 'capability', group: '数据与分析', status: 'active', aliases: ['数据工程'] },
+  { id: 'c-analytics', label: '数据分析', axis: 'capability', group: '数据与分析', status: 'active', aliases: ['数据分析'] },
+  { id: 'c-modeling', label: '数据建模', axis: 'capability', group: '数据与分析', status: 'active', aliases: [] },
+  { id: 'c-metrics-design', label: '指标设计', axis: 'capability', group: '数据与分析', status: 'active', aliases: [] },
+  { id: 'c-ml', label: '算法与建模', axis: 'capability', group: '数据与分析', status: 'active', aliases: ['算法'] },
+
+  /* —— 能力类型轴 · 项目管理与协作 —— */
+  { id: 'c-planning', label: '需求拆解与排期', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
+  { id: 'c-milestone', label: '里程碑管理', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
+  { id: 'c-cross-team', label: '跨团队协同', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
+  { id: 'c-mentoring', label: '带人与分享', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
+  { id: 'c-stakeholder', label: '干系人沟通', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
+
+  /* —— 能力类型轴 · 已停用（展示 chip 的 deprecated 状态）—— */
+  {
+    id: 'c-fullstack',
+    label: '全栈开发',
+    axis: 'capability',
+    group: '工程技术',
+    status: 'deprecated',
+    aliases: [],
+  },
+];
+
+/** 词表索引：id → 定义 */
+export const TAG_BY_ID = TAG_DICT.reduce((m, t) => {
+  m[t.id] = t;
+  return m;
+}, {});
+
+/** 领域轴域分组顺序（用于反查页 chip 组按域分组分行） */
+export const DOMAIN_GROUPS = [
+  'AI 与智能',
+  '业务系统域',
+  '数据域',
+  '平台与基础设施',
+  '组织与流程域',
+];
+/** 能力类型轴能力族顺序 */
+export const CAP_GROUPS = ['工程技术', '产品与设计', '数据与分析', '项目管理与协作'];
+
+/**
+ * personId(email) —— 派生人员 id（唯一事实来源）
+ * 取 `@` 前前缀、统一小写。路由与搜索索引共用同一函数，保证口径一致。
+ * 不给 orgPeople 加 id 字段（避免数据重复与不一致）。
+ */
+export function personId(email) {
+  return String(email || '')
+    .split('@')[0]
+    .trim()
+    .toLowerCase();
+}
+
+/** 由 id 反查人（供路由 :id 使用） */
+export function personById(id) {
+  const key = String(id || '').toLowerCase();
+  return orgPeople.find((p) => personId(p.email) === key) || null;
+}
+
+/**
+ * EVIDENCE_AS_OF —— 实证度时间窗基准日（固定常量）。
+ * 不使用运行时真实日期：否则 mock 数据会随时间滑出 12 个月窗口、实证度逐日贬值，
+ * 断言无法在任何运行日复现、demo 也会崩坏。
+ */
+export const EVIDENCE_AS_OF = '2026-09-17';
+
+/** 权重表：最佳实践=3 / 文章=3 / 项目动态=2 / 公告=2 / Release=1 */
+export const EVIDENCE_WEIGHTS = {
+  bestPractice: 3,
+  article: 3,
+  projectUpdate: 2,
+  announcement: 2,
+  release: 1,
+};
+
+/**
+ * 双轴成熟度 · 自评兴趣度（4 级，措辞落在「兴趣—投入—意愿」语义域）
+ */
+export const SELF_RATINGS = ['curious', 'following', 'practicing', 'advocating'];
+
+/**
+ * personTags —— 人 × 标签 × 自评级别。
+ * 遵守上限：领域 ≤5 / 能力 ≤4 / 合计 ≤9 / 主标签 ≤3。
+ * 刻意保留两位「吹牛态」（自评 practicing/advocating 且实证 0）用于展示诚实标记。
+ */
+export const personTags = {
+  'min.zhou': {
+    // 设计系统负责人：标签更新于 2026-09-16
+    'd-design-system': 'advocating',
+    'd-portal': 'practicing',
+    'd-content-ops': 'following',
+    'd-docs': 'practicing',
+    'c-spec': 'advocating',
+    'c-ux': 'practicing',
+    'c-visual': 'following',
+    'c-product': 'following',
+  },
+  'siyuan.chen': {
+    'd-member': 'advocating',
+    'd-points': 'following',
+    'd-miniapp': 'practicing',
+    'd-crm': 'following',
+    'c-product': 'following',
+    'c-perf': 'following',
+    'c-planning': 'following',
+    'c-analytics': 'following',
+  },
+  'wang.lin': {
+    'd-pos': 'advocating',
+    'd-selfcheckout': 'following',
+    'd-store': 'practicing',
+    'd-order': 'following',
+    'd-esl': 'following',
+    'c-architecture': 'following',
+    'c-reliability': 'following',
+    'c-backend': 'following',
+    // 历史遗留：曾经的「全栈开发」，现已停用 —— 个人页标签矩阵照常渲染（带「已停用」样式，
+    // 规范 C.4：历史引用可审计，不静默丢弃）。
+    'c-fullstack': 'following',
+  },
+  'qian.liu': {
+    'd-ecommerce': 'advocating',
+    'd-promo': 'practicing',
+    'd-order': 'following',
+    'd-member': 'following',
+    'c-product': 'following',
+    'c-analytics': 'following',
+    'c-research': 'following',
+  },
+  'zhiwei.shen': {
+    'd-dataplatform': 'advocating',
+    'd-tracking': 'following',
+    'd-metrics': 'following',
+    'd-realtime': 'following',
+    'd-warehouse': 'following',
+    'c-data-eng': 'following',
+    'c-metrics-design': 'following',
+    'c-modeling': 'following',
+    'c-analytics': 'following',
+  },
+  'jia.he': {
+    'd-sso': 'advocating',
+    'd-observability': 'following',
+    'd-stability': 'following',
+    'd-cicd': 'following',
+    'd-grafana': 'following',
+    'c-reliability': 'following',
+    'c-architecture': 'following',
+    'c-security-eng': 'following',
+    'c-cross-team': 'following',
+  },
+  'yuan.zheng': {
+    'd-supply': 'advocating',
+    'd-replenish': 'following',
+    'd-warehouse': 'following',
+    'd-order': 'following',
+    'c-architecture': 'following',
+    'c-reliability': 'following',
+    'c-backend': 'following',
+  },
+  'tong.wu': {
+    'd-esl': 'advocating',
+    'd-store': 'practicing',
+    'd-pos': 'following',
+    // 刻意吹牛态（第 2 位指定样本，保留 2 个）：自评 practicing 但该标签无任何证据条目
+    'd-realtime': 'practicing',
+    'c-backend': 'following',
+    'c-reliability': 'following',
+    // 刻意吹牛态：自评 practicing 但 c-testing 无任何证据条目
+    'c-testing': 'practicing',
+  },
+  'yiming.gu': {
+    'd-security': 'advocating',
+    'd-sso': 'following',
+    'd-observability': 'following',
+    'd-demand': 'following',
+    'c-security-eng': 'following',
+    'c-spec': 'following',
+    'c-testing': 'following',
+  },
+  'yue.sun': {
+    'd-content-ops': 'following',
+    'd-portal': 'following',
+    'd-docs': 'following',
+    'd-design-system': 'following',
+    'd-collab': 'following',
+    'c-content': 'following',
+    'c-ux': 'following',
+    'c-stakeholder': 'following',
+  },
+};
+
+/** 主标签（每人 ≤3）：进入反查页一级展示，并在个人页头高亮 */
+export const primaryTags = {
+  'min.zhou': ['d-design-system', 'c-spec'],
+  'siyuan.chen': ['d-member', 'c-product', 'd-miniapp'],
+  'wang.lin': ['d-pos', 'c-architecture'],
+  'qian.liu': ['d-ecommerce', 'c-product'],
+  'zhiwei.shen': ['d-dataplatform', 'd-tracking', 'c-data-eng'],
+  'jia.he': ['d-sso', 'c-reliability'],
+  'yuan.zheng': ['d-supply', 'c-reliability'],
+  'tong.wu': ['d-esl'],
+  'yiming.gu': ['d-security', 'c-security-eng'],
+  'yue.sun': ['d-content-ops', 'c-content'],
+};
+
+/* ---------------------- 证据解算器（D.2 的四步） ---------------------- */
+
+/**
+ * 解析 owner/author → 姓名：兼容裸名（「郑远」）与「组 · 姓名」（「会员增长组 · 陈思远」）。
+ * 解析结果为空（空串 / 全空白 / 「何嘉 ·」这类分隔符残缺格式）时**返回 null**，
+ * 与「未匹配到 orgPeople 名单」（如幽灵贡献者「周立」）走同一条「不计入任何人」的路径——
+ * 绝不允许产生空串姓名，否则会伪造出一个孤立/幽灵的个人页 key。
+ */
+export function parseOwnerName(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  if (s.includes('·')) {
+    const parts = s.split('·');
+    const name = parts[parts.length - 1].trim();
+    return name || null;
+  }
+  return s;
+}
+
+/** 是否落在近 12 个月窗口内（以 EVIDENCE_AS_OF 为「今天」） */
+function withinWindow(dateStr) {
+  const asOf = new Date(EVIDENCE_AS_OF + 'T00:00:00');
+  const d = new Date(String(dateStr || '') + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return false;
+  const months = (asOf.getFullYear() - d.getFullYear()) * 12 + (asOf.getMonth() - d.getMonth());
+  return months < 12 && d <= asOf;
+}
+
+/**
+ * 收集全部证据条目（不入个人页，未匹配到人的条目仍保留在部门级列表里）。
+ * 每条：{ kind, weight, personName, date, title, summary, path, tagIds[] }
+ *   · tagIds 由 category / tags 经 TAG_DICT.aliases 映射到领域轴标签。
+ *   · bestPractices 与 articles 有重叠条目 → 以 id 去重（优先 article 全文，权重同 3）。
+ */
+function collectEvidence() {
+  const out = [];
+  const aliasesToTag = {};
+  TAG_DICT.forEach((t) => {
+    aliasesToTag[t.label] = t.id;
+    (t.aliases || []).forEach((a) => {
+      aliasesToTag[a] = t.id;
+    });
+  });
+  const mapToTags = (words) => {
+    const ids = new Set();
+    (words || []).forEach((w) => {
+      const hit = aliasesToTag[String(w || '').trim()];
+      if (hit && TAG_BY_ID[hit] && TAG_BY_ID[hit].axis === 'domain') ids.add(hit);
+    });
+    return Array.from(ids);
+  };
+
+  // bestPractices：category 映射。articles 有全文的以 articles 为准（避免重复计分）。
+  const articleIds = new Set(Object.keys(articles));
+  bestPractices.forEach((b) => {
+    if (articleIds.has(b.id)) return; // 去重：交给下面的 articles 循环，避免同一篇计两次
+    out.push({
+      kind: 'bestPractice',
+      weight: EVIDENCE_WEIGHTS.bestPractice,
+      personName: parseOwnerName(b.author),
+      date: b.updated,
+      title: b.title,
+      summary: b.summary,
+      path: '#/knowledge/article/' + b.id,
+      tagIds: mapToTags([b.category]),
+    });
+  });
+
+  // articles（有全文）：author 为裸名
+  Object.values(articles).forEach((a) => {
+    const cat = String(a.category || '').split(' / ');
+    out.push({
+      kind: 'article',
+      weight: EVIDENCE_WEIGHTS.article,
+      personName: parseOwnerName(a.author),
+      date: a.updated,
+      title: a.title,
+      summary: (a.body && a.body[0] && a.body[0].text) || '',
+      path: '#/knowledge/article/' + a.id,
+      tagIds: mapToTags([cat[cat.length - 1]]),
+    });
+  });
+
+  // projectUpdates：「组 · 姓名」需解析
+  projectUpdates.forEach((p) => {
+    out.push({
+      kind: 'projectUpdate',
+      weight: EVIDENCE_WEIGHTS.projectUpdate,
+      personName: parseOwnerName(p.owner),
+      date: p.date,
+      title: p.title,
+      summary: p.summary,
+      path: '#/news',
+      tagIds: mapToTags(p.tags),
+    });
+  });
+
+  // announcements：「组 · 姓名」需解析
+  announcements.forEach((a) => {
+    out.push({
+      kind: 'announcement',
+      weight: EVIDENCE_WEIGHTS.announcement,
+      personName: parseOwnerName(a.owner),
+      date: a.date,
+      title: a.title,
+      summary: a.summary,
+      path: '#/news',
+      tagIds: mapToTags(a.tags),
+    });
+  });
+
+  // releaseNotes：裸名，含幽灵贡献者「周立」（不在 orgPeople 名单内 → 不入任何人）
+  // ★ 哑弹守卫（P1-3）：只统计**已发布**的 Release。releaseStatusMap 中只有
+  //   status === 'released'（已发布）代表真上线；'gray'（灰度中）/ 'planned'（计划中）
+  //   均**不得**计入实证度——否则一条未来日期/未发布的 Release 会凭空抬高他人档位。
+  //   判据来源：releaseStatusMap（released→已发布 / gray→灰度中 / planned→计划中），
+  //   只有 released 之外一律剔除。
+  //   同类排查（P1-3 复审）：announcements / projectUpdates **无 status 字段**
+  //   （公告即已发生的事实，不存在「未发布」态），故无需守卫——已逐对象核对字段。
+  releaseNotes.forEach((r) => {
+    if (r.status !== 'released') return; // 只留已发布
+    out.push({
+      kind: 'release',
+      weight: EVIDENCE_WEIGHTS.release,
+      personName: parseOwnerName(r.owner),
+      date: r.date,
+      title: `${r.system} ${r.version}`,
+      summary: r.summary,
+      path: '#/news',
+      tagIds: mapToTags([r.system]),
+    });
+  });
+
+  return out;
+}
+
+/** 全量证据条目（导出供测试做数据层断言；业务代码请用 getPersonProfile）。 */
+export const ALL_EVIDENCE = collectEvidence();
+
+/** 部门级总数（含未匹配到人的证据，方便后续扩展） */
+export function departmentEvidenceCount() {
+  return ALL_EVIDENCE.length;
+}
+
+/** 按加权分 → 档位：0→none / 1–2→emerging / 3–5→established / ≥6→authoritative */
+export function tierOfScore(score) {
+  if (score <= 0) return 'none';
+  if (score <= 2) return 'emerging';
+  if (score <= 5) return 'established';
+  return 'authoritative';
+}
+
+/**
+ * getPersonProfile —— 个人页 / 反查页共用的查询函数。
+ * 返回 { person, tags:[{tag, selfRating, evidenceTier, recentScore, recentCount,
+ *         historicalCount, contributions[]}], stats, contributions[] }
+ *   · contributions 每条带 tagIds（供「→ 标签名」联动渲染与闭环验收）
+ *   · 幽灵贡献者「周立」未匹配到人 → 不计入任何个人页
+ */
+export function getPersonProfile(personIdOrEmail) {
+  const key = String(personIdOrEmail || '').toLowerCase();
+  const person = orgPeople.find((p) => personId(p.email) === key) || null;
+  if (!person) return { person: null, tags: [], stats: { domain: 0, capability: 0, recent: 0 }, contributions: [] };
+
+  const mapping = personTags[key] || {};
+  const primaries = primaryTags[key] || [];
+
+  // 该人的全部证据条目（近 12 月 + 历史）。
+  // 显式排除 parseOwnerName 返回 null（格式残缺/空 owner）的条目——与幽灵贡献者「周立」
+  // （人名解析成功但不在 orgPeople 名单内）走同一条「不计入任何人」的路径。
+  const mine = ALL_EVIDENCE.filter((e) => e.personName != null && e.personName === person.name);
+  const contributions = mine
+    .slice()
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .map((e, i) => ({ ...e, key: `${e.kind}-${i}-${e.title}` }));
+
+  const buildTag = (id) => {
+    const tag = TAG_BY_ID[id];
+    if (!tag) return null;
+    const selfRating = mapping[id] || null;
+    // ★ 状态守卫（P1-4）：deprecated / merged 标签**不参与实证计算**——它们已不是有效标签，
+    //   证据度恒为 0（tier='none'）。否则一条恰好带了旧标签别名的贡献会凭空抬高（或伪造）
+    //   该标签档位，进而污染个人页。此处把不变量写在**代码**里，而不是依赖「当前没有贡献
+    //   映射到旧标签」的数据巧合。selfRating 仍保留（历史自评可展示），但实证恒 none。
+    const isActive = tag.status !== 'deprecated' && tag.status !== 'merged';
+    // 该标签喂养的证据 = 该人带此标签映射的条目
+    const feeding = contributions.filter((e) => (e.tagIds || []).includes(id));
+    const recentFeeding = feeding.filter((e) => withinWindow(e.date));
+    // 去重：同一篇（title 相同）只计一次
+    const uniq = (arr) => {
+      const seen = new Set();
+      return arr.filter((e) => {
+        if (seen.has(e.title)) return false;
+        seen.add(e.title);
+        return true;
+      });
+    };
+    const recent = uniq(recentFeeding);
+    const historical = uniq(feeding).filter((e) => !withinWindow(e.date));
+    const recentScore = isActive ? recent.reduce((s, e) => s + e.weight, 0) : 0;
+    const evidenceTier = tierOfScore(recentScore);
+    // 已合并标签：补 originLabel（旧名）与展示名（新词 = target 的 label），
+    // 供个人页标签矩阵用 TagChip(status='merged') 渲染「原『旧名』」角标（规范 C.4 可审计）。
+    let displayTag = tag;
+    if (tag.status === 'merged') {
+      const target = TAG_BY_ID[tag.mergedInto];
+      displayTag = { ...tag, originLabel: tag.label, label: (target && target.label) || tag.label };
+    }
+    return {
+      tag: displayTag,
+      selfRating,
+      evidenceTier,
+      recentScore,
+      recentCount: recent.length,
+      historicalCount: historical.length,
+      totalCount: uniq(feeding).length,
+      primary: primaries.includes(id),
+      contributions: feeding,
+    };
+  };
+
+  // 领域轴在上、能力轴在下；各自内部按主标签优先，其余保持词表顺序
+  const orderOf = (id) => TAG_DICT.findIndex((t) => t.id === id);
+  const tags = Object.keys(mapping)
+    .map(buildTag)
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.tag.axis !== b.tag.axis) return a.tag.axis === 'domain' ? -1 : 1;
+      if (a.primary !== b.primary) return a.primary ? -1 : 1;
+      return orderOf(a.tag.id) - orderOf(b.tag.id);
+    });
+
+  const domainCount = tags.filter((t) => t.tag.axis === 'domain').length;
+  const capCount = tags.filter((t) => t.tag.axis === 'capability').length;
+  const recentEvidence = contributions.filter((e) => withinWindow(e.date)).length;
+
+  return {
+    person,
+    tags,
+    stats: { domain: domainCount, capability: capCount, recent: recentEvidence },
+    contributions,
+  };
+}
+
+/** 该人负责的工具（toolGroups.owner 命中）——协作触点 */
+export function toolsOfPerson(person) {
+  if (!person) return [];
+  const out = [];
+  toolGroups.forEach((g) => {
+    g.tools.forEach((t) => {
+      const owner = parseOwnerName(t.owner);
+      if (owner != null && owner === person.name) out.push({ ...t, group: g.label });
+    });
+  });
+  return out;
+}
+
+/** 标签 → 懂它的人（反查页：按姓名排序，绝不做实证度排序） */
+export function peopleWithTag(tagId) {
+  return orgPeople
+    .filter((p) => (personTags[personId(p.email)] || {})[tagId])
+    .map((p) => p.name);
+}
+
+/**
+ * ⚠️ 历史遗留（v0.3 重构后已无消费方）：原「工作台 Tabs」已于站点结构重构中移除，
+ * 「组织速查」「业务需求」升为一级栏目（#/org、#/demand），工作台退回纯工具导航。
+ * 保留数组以防外部引用，但 label 必须指向**现行导航名**，不得再出现已失效的
+ * 「工作台 · 需求提交」旧口径。
+ */
 export const workspaceTabs = [
   { key: 'tools', label: '工具导航' },
   { key: 'org', label: '组织速查' },
-  { key: 'demand', label: '需求提交' },
+  { key: 'demand', label: '业务需求' },
 ];
 
 export const toolGroups = [
@@ -954,42 +1538,427 @@ export const demandTypes = [
   { value: 'other', label: '其他' },
 ];
 
+/* —— 两档模板：轻量档（4 字段，不跑评分） / BRD 完整档（8 字段，实时评完整度）——
+   受众分流的落地：类 B 工程师走轻量档，最快 4 项即可提交；
+   类 A 业务团队走完整档，靠字段引导把「问题」和「方案」拆开。 */
+export const demandTracks = {
+  light: {
+    key: 'light',
+    label: '轻量档',
+    /** 给业务方看的分流器文案（不用「轻量 / BRD」内部术语） */
+    segLabel: '权限 / 其他（4 项）',
+    types: ['perm', 'perm-write', 'other'],
+    fieldCount: 4,
+    committed: '提交后 2 个工作日内回应',
+  },
+  brd: {
+    key: 'brd',
+    label: '完整档',
+    segLabel: '功能 / 系统（8 项）',
+    types: ['feature', 'system'],
+    fieldCount: 8,
+    committed: '提交后 2 个工作日内由受理人指派',
+  },
+};
+
+/** 类型 → 档位 */
+export function trackOfType(typeValue) {
+  if (demandTracks.light.types.includes(typeValue)) return 'light';
+  if (demandTracks.brd.types.includes(typeValue)) return 'brd';
+  return 'light'; // 兜底：未知类型归轻量档，避免误伤
+}
+
+/** 「说不清，帮我定位」——把不确定性变成服务承诺，是合法的必填满足项 */
+export const DEMAND_UNSURE = 'unsure';
+
+export const demandSystems = [
+  { value: 'pos', label: '门店 POS' },
+  { value: 'member', label: '会员中心' },
+  { value: 'wms', label: '库存中心' },
+  { value: 'data', label: '数据平台' },
+  { value: 'cms', label: '商城内容后台' },
+  { value: DEMAND_UNSURE, label: '说不清，帮我定位' },
+];
+
+/** 三段式影响范围与量级（每组单选——量级是标量，多选会让判定失去意义） */
+export const demandScaleOptions = {
+  headcount: {
+    key: 'headcount',
+    label: '影响多少人',
+    options: ['3 人以内', '3–20 人', '20–100 人', '100 人以上'],
+  },
+  frequency: {
+    key: 'frequency',
+    label: '多频繁',
+    options: ['每天', '每周几次', '每月几次', '偶发一次'],
+  },
+  blocking: {
+    key: 'blocking',
+    label: '是否阻塞业务',
+    options: ['阻塞，业务做不了', '不阻塞，但有干扰', '暂时不影响'],
+  },
+};
+
+/* —— 打卡规则词表：纯前端规则判定，零 API ——
+   D1 的判定逻辑：现状字段「命中现象词」且「未命中命令式方案词」→ 满分。
+   出现方案词 → 扣分，并提示把「加个xx」挪到期望结果。 */
+export const demandPhenomenonWords = [
+  '对不上',
+  '不一致',
+  '超时',
+  '漏',
+  '慢',
+  '没人知道',
+  '不准',
+  '重复',
+  '失败',
+  '缺失',
+  '对不齐',
+  '查不到',
+];
+
+export const demandSolutionWords = ['加个', '做个', '改个', '导出', '新增一个', '给我加', '加一个', '写个', '搞个'];
+
+/** D4 可验证性：命中数字、阈值或「当…时」句式 → 满分；抽象表述 → 半分 */
+export const demandVerifiableWords = ['当', '时', '以内', '超过', '少于', '≥', '≤', '秒', '分钟', '小时', '天', '％', '%', '达到'];
+
+/** D5 标题信息量：空话黑名单（命中即 0 分） */
+export const demandTitleFluff = ['优化一下', '优化下', '提个需求', '有个需求', '改进一下', '调整一下', '麻烦看看'];
+
+/** 完整档 8 字段定义：控件类型 / 是否必填 / 是否计分 / 人话 placeholder */
+export const brdTemplates = {
+  brd: [
+    {
+      key: 'title',
+      label: '需求标题',
+      control: 'input',
+      required: true,
+      scored: true,
+      min: 12,
+      maxLength: 60,
+      placeholder: '例如：门店盘点时库存对不上账，希望定位到具体环节',
+      hint: '一句话说清「谁在什么场景下遇到什么」，比「优化一下」有用得多',
+    },
+    {
+      key: 'type',
+      label: '需求类型',
+      control: 'select',
+      required: true,
+      scored: false,
+      hint: '选「功能需求」或「系统接入 / 打通」会走完整档',
+    },
+    {
+      key: 'current',
+      label: '现状 / 遇到的问题',
+      control: 'textarea',
+      rows: 4,
+      required: true,
+      scored: true,
+      min: 20,
+      placeholder:
+        '例如：门店盘点时对不上账。系统显示的库存和实际货架差 3–5 件，但不知道是入库、调拨还是收银环节漏记的。',
+      hint: '描述你遇到的现象就行，先不用想怎么解决',
+    },
+    {
+      key: 'expected',
+      label: '期望结果',
+      control: 'textarea',
+      rows: 3,
+      required: true,
+      scored: false,
+      min: 15,
+      placeholder: '例如：能在盘点差异报表里直接看到差异产生的具体环节和时间点。',
+      hint: '写「希望达到什么」，而不是「加什么按钮」',
+    },
+    {
+      key: 'scale',
+      label: '影响范围与量级',
+      control: 'scale',
+      required: true,
+      scored: true,
+      hint: '三组各选一项，点多快就多快',
+    },
+    {
+      key: 'systems',
+      label: '涉及系统 / 入口',
+      control: 'systems',
+      required: true,
+      scored: true,
+      hint: '可多选；不确定就选「说不清，帮我定位」，我们会帮你找',
+    },
+    {
+      key: 'expectAt',
+      label: '期望完成时间',
+      control: 'date',
+      required: false,
+      scored: true,
+      hint: '选填。有硬性节点就填，没有就勾「无硬性期限」',
+    },
+    {
+      key: 'acceptance',
+      label: '验收 / 成功标准',
+      control: 'textarea',
+      rows: 3,
+      required: false,
+      scored: true,
+      min: 15,
+      placeholder: '例如：当盘点差异报表能按环节列出差异时，视为完成。（写不出可以不填）',
+      hint: '选填，写不出可以先跳过。建议句式「当……时，视为完成」',
+    },
+  ],
+  light: [
+    {
+      key: 'title',
+      label: '需求标题',
+      control: 'input',
+      required: true,
+      scored: false,
+      maxLength: 60,
+      placeholder: '例如：申请库存服务的生产库只读权限',
+      hint: '一句话说清要什么',
+    },
+    {
+      key: 'type',
+      label: '需求类型',
+      control: 'select',
+      required: true,
+      scored: false,
+      hint: '权限类与「其他」走轻量档，不需要填完整 BRD',
+    },
+    {
+      key: 'systems',
+      label: '涉及系统 / 库',
+      control: 'systems',
+      required: true,
+      scored: false,
+      hint: '可多选；不确定就选「说不清，帮我定位」',
+    },
+    {
+      key: 'purpose',
+      label: '用途与期限',
+      control: 'textarea',
+      rows: 3,
+      required: true,
+      scored: false,
+      min: 10,
+      placeholder: '例如：因排查库存差异需要查询近 3 个月的出入库流水，预计使用 1 个月。',
+      hint: '写清用来做什么、要用多久（至少 10 字）',
+    },
+    {
+      key: 'contact',
+      label: '联系方式',
+      control: 'input',
+      required: false,
+      scored: false,
+      placeholder: '企微 / 邮箱（选填，便于处理人联系你）',
+      hint: '选填，不计入完整度',
+    },
+  ],
+};
+
+/** 评分维度的人话名与行动提示（命中 / 部分命中 / 未命中三态）
+    三态必须分开：none 态复用 partialHint 会给出「偏抽象」这类**无法执行**的提示
+    （用户还没写，谈不上抽象），所以 each 维度都要有独立的 emptyHint。 */
+export const brdDimensions = {
+  D1: {
+    key: 'D1',
+    name: '问题与方案的分离',
+    fullHint: '现状说的是现象，受理人能据此判断该不该做',
+    partialHint: '把解决办法挪到「期望结果」，现状里写清现在是什么现象',
+    emptyHint: '还没填现状。写「现在是什么现象」就行，不必想解决办法',
+  },
+  D2: {
+    key: 'D2',
+    name: '影响范围',
+    fullHint: '人数、频率、是否阻塞都给了，受理人好排优先级',
+    partialHint: '量级还差几项，把「影响多少人 / 多频繁 / 是否阻塞」补齐',
+    emptyHint: '还没选量级。三组各点一项，估个大概就够',
+  },
+  D3: {
+    key: 'D3',
+    name: '涉及系统',
+    fullHint: '指向了具体系统，可以直接找对应负责人',
+    partialHint: '选了「说不清」也没关系，受理人会帮你定位',
+    emptyHint: '还没选涉及系统。不确定就选「说不清，帮我定位」',
+  },
+  D4: {
+    key: 'D4',
+    name: '验收标准',
+    fullHint: '写清了「怎样算完成」，验收时不会扯皮',
+    partialHint: '验收标准偏抽象，加一句「当……时，视为完成」会更清楚',
+    emptyHint: '还没填验收标准。这一项可以后补，想不到就先跳过',
+  },
+  D5: {
+    key: 'D5',
+    name: '标题的指向性',
+    fullHint: '标题能看出对象和场景，检索时找得到',
+    partialHint: '标题再具体一点，带上「哪个系统 / 哪个环节」',
+    emptyHint: '还没填标题。一句话说清「谁在什么场景遇到什么」',
+  },
+};
+
+/** 完整度总评四档话术——越低的档位越要先肯定 */
+export const demandCompletenessCopy = [
+  { min: 80, text: '资料齐了，受理人拿到就能直接排期。' },
+  { min: 60, text: '主体信息够了。补上{weak}会更快被受理。' },
+  { min: 40, text: '已经说清了问题。把{weak}补一句，受理会顺很多。' },
+  { min: 0, text: '先写清现状和期望就能提交；{weak}之后再补也可以。' },
+];
+
+/* —— BRD agent：脚本化话术（零 LLM、零网络请求）—— */
+export const brdPrompts = [
+  '我该先写现状还是期望？',
+  '量级怎么估？',
+  '验收标准写不写？',
+  '「说不清」选了会怎样？',
+];
+
+export const brdScriptedReplies = [
+  {
+    match: ['现状', '期望', '先写'],
+    text:
+      '先写现状，想到哪写到哪，我帮你理。现状里只写「现在是什么现象」（比如对不上、超时、没人知道），解决办法留在「期望结果」里写——受理人要靠现状判断该不该做。',
+  },
+  {
+    match: ['量级', '多少人', '怎么估', '影响范围'],
+    text:
+      '不用精确。点三组胶囊就行：影响多少人、多频繁、是否阻塞业务。估个大概区间就够，受理人用它是排优先级，不是做考核。',
+  },
+  {
+    match: ['验收', '成功标准', '写不写'],
+    text:
+      '验收标准是选填的，写不出可以先跳过，不影响提交。如果写得出来，用「当……时，视为完成」这个句式最省事，比如「当盘点差异报表能按环节列出差异时，视为完成」。',
+  },
+  {
+    match: ['说不清', '定位', '不确定'],
+    text:
+      '「说不清，帮我定位」是合法选项，选了照样能提交。等于让受理人替你找系统，比硬填一个错的系统名更省事。',
+  },
+  {
+    match: ['标题', '怎么起'],
+    text:
+      '标题写「谁在什么场景下遇到什么」就够，比如「门店盘点时库存对不上账，希望定位到具体环节」。避免「优化一下」这类写法，受理人检索时找不到。',
+  },
+];
+
+export const brdAgentIntro =
+  '我是 BRD 协作助手。你写，我帮你理——只给一条最值得改的建议，不打扰你提交。';
+
+/** 完整度四档时 agent 的话术（协作者语气，先肯定再建议，达标就停） */
+export const brdAgentVerdict = {
+  high: '资料齐了，我没什么要改的。提交吧。',
+  good: '主体信息够了。{weak}补一句会更快被受理。',
+  fair: '问题说清楚了。把{weak}补一句，受理会顺很多。',
+  low: '先写清现状和期望就能提交；{weak}之后再补也可以。',
+};
+
+/* —— 需求数据 ——
+   真实感示意内容，含 BRD 完整档与轻量档两类，供公开列表复用（首页取 3 条 / 提交页取 6 条） */
 export const demandHistory = [
   {
     id: 'REQ-2026-0921',
     title: '生产库只读权限：库存服务',
     type: '数据权限 - 只读',
+    track: 'light',
     status: 'inprogress',
     submitted: '2026-09-16',
     assignee: '顾一鸣',
     note: '待系统负责人确认库范围',
+    scope: { systems: ['wms', 'data'], purpose: '排查库存差异，需查询近 3 个月出入库流水，预计使用 1 个月。' },
+    completeness: 100,
   },
   {
     id: 'REQ-2026-0918',
     title: '申请接入埋点平台校验能力',
     type: '系统接入 / 打通',
+    track: 'brd',
     status: 'done',
     submitted: '2026-09-11',
     assignee: '沈知微',
     note: '已完成配置与联调',
+    completeness: 100,
+    expectAt: '2026-09-25',
+    scope: {
+      current:
+        '埋点校验目前只能在提测后人工抽查，事件命名与参数缺失往往到数据回流时才发现，返工要等下一个发版窗口（约两周）。',
+      expected: '在埋点方案提交阶段就能自动校验命名与参数，不合格的直接标出来，不用等到数据回流。',
+      scale: { headcount: '20–100 人', frequency: '每天', blocking: '不阻塞，但有干扰' },
+      systems: ['data'],
+      acceptance: '当埋点方案在线提交时能自动标出不合规事件，且校验结果可被责任人看到，视为完成。',
+    },
   },
   {
     id: 'REQ-2026-0915',
     title: '价签批量刷新失败告警细化到门店',
     type: '功能需求',
+    track: 'brd',
     status: 'pending',
     submitted: '2026-09-09',
     assignee: '吴桐',
     note: '已进入需求池，待排期',
+    completeness: 79,
+    scope: {
+      current:
+        '价签批量刷新偶尔失败，但告警只报到区域级，看不到具体是哪家门店、哪批价签，门店反馈问题后要人工逐个排查。',
+      expected: '告警里直接带上门店名称与失败的价签批次，方便值班同学一眼定位到店。',
+      scale: { headcount: '3–20 人', frequency: '每周几次', blocking: '不阻塞，但有干扰' },
+      systems: ['pos'],
+    },
   },
   {
     id: 'REQ-2026-0912',
     title: '线上商城搜索排序策略调整',
     type: '功能需求',
+    track: 'brd',
     status: 'inprogress',
     submitted: '2026-09-05',
     assignee: '刘倩',
     note: 'UAT 阶段',
+    completeness: 92,
+    expectAt: '2026-10-15',
+    scope: {
+      current:
+        '搜索结果里缺货商品仍排在前列，用户点进去才能发现有货没货，跳出率在搜索页偏高，运营侧能明显看到这个现象。',
+      expected: '有货商品优先展示，缺货的排到后面并标注「补货中」，用户不用逐个点开确认。',
+      scale: { headcount: '100 人以上', frequency: '每天', blocking: '不阻塞，但有干扰' },
+      systems: ['cms'],
+      acceptance: '当搜索列表中缺货商品被置底并带「补货中」标记时，视为完成。',
+    },
+  },
+  {
+    id: 'REQ-2026-0908',
+    title: '会员小程序积分到期提醒文案与入口优化',
+    type: '功能需求',
+    track: 'brd',
+    status: 'done',
+    submitted: '2026-08-29',
+    assignee: '陈思远',
+    note: '随 v2.8.0 一并发布',
+    completeness: 95,
+    expectAt: '无硬性期限',
+    scope: {
+      current:
+        '积分临近到期时，小程序只在会员页里放一行灰字，绝大多数会员根本不知道自己的积分要过期，客服最近常接到相关咨询。',
+      expected: '在积分到期前 30 天与 7 天各给一次站内提醒，提醒里直接带上即将过期的积分数额。',
+      scale: { headcount: '100 人以上', frequency: '每月几次', blocking: '不阻塞，但有干扰' },
+      systems: ['member'],
+      acceptance: '当会员在积分到期前收到两次提醒、且提醒中能看到过期积分数量时，视为完成。',
+    },
+  },
+  {
+    id: 'REQ-2026-0905',
+    title: '申请数据平台经营看板的只读账号',
+    type: '数据权限 - 只读',
+    track: 'light',
+    status: 'done',
+    submitted: '2026-08-26',
+    assignee: '沈知微',
+    note: '已开通，有效期 90 天',
+    completeness: 100,
+    scope: {
+      systems: ['data'],
+      purpose: '门店月度复盘需要看经营看板，供团队 4 人使用，预计长期使用、按季度续期。',
+    },
   },
 ];
 
@@ -998,6 +1967,29 @@ export const demandStatusMap = {
   inprogress: { label: '进行中', semantic: 'info' },
   done: { label: '已完成', semantic: 'success' },
 };
+
+/** 首页入口区块文案（服务台语气） */
+export const demandEntryCopy = {
+  sectionDesc: '内部系统与数据需求的统一入口',
+  headline: '有需求，从这里提交',
+  promise: '提交后 2 个工作日内由受理人回应并指派，进度在提交页实时可见。',
+  primaryCta: '提交需求',
+  // P1-2：原文案「先看提交指引」却跳 #/demand（公开列表）—— 文案与落点不符。
+  // 站内没有独立的「提交指引」承载页，故改为与真实落点一致的服务台语气；
+  // 指向公开列表（别人提了什么、处理到哪一步），语义与目标页严格对应。
+  secondaryCta: '先看看别人提了什么',
+  listTitle: '最近提交',
+  listDesc: '别人提了什么、处理到哪一步',
+};
+
+/** 状态摘要（首页大卡用） */
+export function demandStats(rows) {
+  return {
+    pending: rows.filter((r) => r.status === 'pending').length,
+    inprogress: rows.filter((r) => r.status === 'inprogress').length,
+    done: rows.filter((r) => r.status === 'done').length,
+  };
+}
 
 export const releaseStatusMap = {
   released: { label: '已发布', semantic: 'success' },
@@ -1016,16 +2008,70 @@ export const releaseTypeMap = {
 
 /* ======================= Agent for Digital（脚本化回复）======================= */
 
+/** 反馈意图（最高优先级，必须先于其他 match 命中）—— 02b §C.1
+ *
+ *  ⚠️ 这张词表是「无条件抢先」的：命中即返回反馈动作，不再走知识问答。
+ *  因此**每个词都必须表达「对门户本身的意见」这个意图**，不能只是话题词。
+ *
+ *  实测纠正（本轮）：原先收录的裸词 `问题` / `建议` / `找不到` / `缺失` 会**劫持正常提问**：
+ *    ·「SSO 接入有什么常见问题？」 → 被判为反馈，不再回答四步接入流程
+ *    ·「库存对不上账是什么问题」   → 被判为反馈，尽管有专门的库存一致性应答
+ *    ·「这个页面导航有点乱」       → 反而**漏检**，落到兜底回复（真实反馈却无处登记）
+ *  改法：把裸词换成语境词（必须带「这个页面 / 门户 / 网站 / 用起来」等指向门户的限定），
+ *  并补上用户真实会说的说法（「有点乱 / 不好找 / 提个反馈」）。
+ *  宁可漏检（有兜底文案与显式提问入口），绝不错检（会把知识问答答错）。
+ */
+export const agentFeedbacksIntent = {
+  match: [
+    // 明确指向「我在提意见」的表达
+    '反馈',
+    '提个建议',
+    '提建议',
+    '提个意见',
+    '我想提',
+    '吐槽',
+    '优化建议',
+    // 指向门户本身的体验描述（带限定，避免吃掉知识提问）
+    '这个页面',
+    '这个网站',
+    '这个门户',
+    '门户本身',
+    '页面有点',
+    '有点乱',
+    '不好找',
+    '不太好找',
+    '用起来',
+    '改一下',
+    '改进一下',
+    '能不能加',
+    '希望能加',
+    // 缺陷类（保留，但要带门户指代，否则「bug」可能指业务系统缺陷）
+    '门户的 bug',
+    '页面的 bug',
+    '这里有个 bug',
+  ],
+  // 命中后返回特殊动作型回复（不是纯文本）
+  kind: 'feedback',
+};
+
+/** 反馈类型四选项（沿用原 TopBar Modal 的四项，一字不改） */
+export const feedbackKinds = [
+  { value: 'ia', label: '信息架构 / 导航' },
+  { value: 'content', label: '内容缺失 / 更新' },
+  { value: 'ui', label: '显示或交互问题' },
+  { value: 'idea', label: '新功能建议' },
+];
+
 export const agentReplies = [
   {
     match: ['sso', '单点', '统一身份'],
     text:
-      '新系统接入 SSO 分四步：① 提交接入申请（系统标识 + 回调地址）；② 平台组发放客户端配置并联调；③ 灰度验证登录与登出；④ 验收归档。完整流程见知识中心《新系统接入 SSO 的标准流程》，申请入口在工作台「需求提交」。',
+      '新系统接入 SSO 分四步：① 提交接入申请（系统标识 + 回调地址）；② 平台组发放客户端配置并联调；③ 灰度验证登录与登出；④ 验收归档。完整流程见知识中心《新系统接入 SSO 的标准流程》；在顶部导航「业务需求」里点「新增需求」提交，类型选「系统接入 / 打通」。',
   },
   {
     match: ['权限', '只读', '数据库'],
     text:
-      '生产库只读权限请到工作台「需求提交」提交，类型选「数据权限 - 只读」，填写系统名、库名、用途与期限。审批人为系统负责人 + 安全合规，通常 1 个工作日内完成，默认有效期 90 天。',
+      '生产库只读权限在顶部导航「业务需求」里点「新增需求」提交，类型选「数据权限 - 只读」，填写系统名、库名、用途与期限。这几个字段在轻量档里就够了，审批人为系统负责人 + 安全合规，通常 1 个工作日内完成，默认有效期 90 天。',
   },
   {
     match: ['首屏', '小程序', '性能'],
@@ -1045,4 +2091,4 @@ export const agentReplies = [
 ];
 
 export const agentFallback =
-  '我目前是原型内的脚本化助手，还没有接入真实知识库。你可以先去「知识中心 · FAQ」搜索，或在「待补知识」里登记这个问题。已识别的常见问题我也可以直接回答：SSO 接入、权限申请、小程序首屏优化、库存一致性、告警值班。';
+  '我目前是原型内的脚本化助手，还没有接入真实知识库。你可以先去「知识中心 · FAQ」搜索，或在「待补知识」里登记这个问题。已识别的常见问题我也可以直接回答：SSO 接入、权限申请、小程序首屏优化、库存一致性、告警值班。对门户本身的意见或建议，直接告诉我就行，我帮你登记成反馈。';

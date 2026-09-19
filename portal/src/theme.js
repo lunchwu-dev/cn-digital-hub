@@ -64,6 +64,17 @@ export const TOKENS = {
   // —— 图表分类色板（8 色）——
   chart: ['#3643BA', '#1C7ED6', '#12A594', '#2F9E44', '#F08C00', '#E8590C', '#C2255C', '#868E96'],
 
+  // —— 标签体系 / 成熟度专用（单色阶 + 中性，零新色相）——
+  // 实证度 4 档 = 品牌蓝的 4 级深浅阶（单色阶），坚决不做红黄绿：
+  //   红黄绿是「红绿灯隐喻」，天然携带绩效评价意味，与「禁止跨人比较」正面冲突。
+  // brandStep1/2/3 是 brand 家族的中间阶；最高档直接复用 brand（不再派生更深，
+  //   因为 brandHover/brandActive 是交互态专用，挪作静态数据语义会与「鼠标悬停」混淆）。
+  brandStep1: '#DCE0F4', // 实证度 none 档填充 + 已选 chip 加深底
+  brandStep2: '#A9B2E6', // 实证度 emerging
+  brandStep3: '#6B78D4', // 实证度 established
+  cardHeadBg: '#FAFAFA', // TagMatrix 分区标题条底（比 surface 深一档、比 page 浅一档）
+  dashedBorder: '#C9CCCE', // 吹牛态虚线描边 + 已停用 chip 描边
+
   // —— 阴影（两档，投影色用品牌墨色）——
   shadowRaised: '0 1px 2px rgba(0,15,23,.06), 0 1px 3px rgba(0,15,23,.10)',
   shadowFloating: '0 8px 24px rgba(0,15,23,.14), 0 2px 6px rgba(0,15,23,.06)',

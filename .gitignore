@@ -30,11 +30,22 @@ outputs/deploy-site/
 portal-site/
 
 # ── 根目录临时文件（探针 / 诊断输出）────────────────────
+# 约定：根目录下 `_` 开头的 .txt / .log / .png / .js / .json / .cjs 属一次性产物。
+# 例外（显式放行，见下方 negation）：`_release_v*.md` —— 各版本发布说明，有长期价值。
 /_*.txt
 /_*.log
 /_*.png
+/_*.js
+/_*.json
+/_*.cjs
+!/_release_v*.md
 /_probe_site/
 /_cprof/
+
+# ── CDP / headless Chrome 用户数据目录（体积大、纯缓存）──
+# 注意：目录名含下划线（如 portal/_cdp_scope_profile/），不会被上方的 `/_*.txt` 一类规则命中，
+#      已由下方 `/portal/_*` 与 `/portal/_cdp_profile*` 覆盖，此处再显式声明一次以防遗漏。
+/portal/_cdp_*/
 
 # ── 运行时与本地环境 ──────────────────────────────────
 *.log
@@ -55,3 +66,49 @@ Desktop.ini
 .workbuddy/
 .wbapp_*.genie
 .wbapp_*
+
+# ── 变异自证运行期产物（tests/mutation.cjs）────────────
+# 备份目录与并发锁只在运行时存在，跑完会自清；忽略以防中断残留
+portal/tests/.mutation-backup/
+portal/tests/.mutation.lock
+
+# ── portal 下的验证脚本与运行期输出 ────────────────────
+# 约定：portal/ 根目录（不含 src/ tests/）中 **下划线或纯小写单字母开头** 的
+# .cjs / .js / .txt / .json 一律视为一次性验证产物，不入库。
+# 说明：这些文件是 CDP 复验、变异测试、交付组装时的中间脚本与日志，
+#      有价值的结论已沉淀进 tests/ 与 outputs/，原件留着只会淹没真实代码。
+/portal/_*.cjs
+/portal/_*.js
+/portal/_*.txt
+/portal/_*.json
+/portal/[a-z].txt
+/portal/smoke*.txt
+/portal/dist-check*.txt
+/portal/build-*.txt
+
+# src 下的临时状态快照（验证时导出，非源码）
+/portal/src/_*.txt
+
+# tests 下的一次性探针（正式套件是 smoke.cjs / shots.cjs / mutation.cjs）
+/portal/tests/_*.cjs
+/portal/tests/_*.mjs
+/portal/tests/_*.txt
+
+# ── CDP 调试用 Chrome 用户目录（体积大、纯缓存）──────────
+/portal/_cdp_profile*/
+/portal/_shots*/
+
+# ── 交付组装与截图的工作区（截图成品在 outputs/delivery-*/ 内）──
+/portal/shots_next/
+
+# 交付说明的草稿副本 —— 正式版在 outputs/delivery-*/交付说明.md
+/portal/_delivnote.md
+
+# ── outputs 下的一次性验证脚本与日志 ─────────────────────
+# 保留：*.md 设计规范/审查报告（有长期价值）、delivery-*/ 交付包
+# 忽略：脚本与运行日志
+outputs/_*.cjs
+outputs/_*.mjs
+outputs/_*.js
+outputs/_*.txt
+outputs/_*.json

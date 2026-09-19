@@ -167,7 +167,7 @@ function SpecView() {
         </Panel>
         <Panel style={{ padding: '14px 16px' }}>
           <div style={{ fontSize: 13, color: c.text2, lineHeight: 1.7 }}>
-            规范由设计系统组维护。需要新增条目或修订既有规范，请在工作台「需求提交」中发起，评审通过后统一发布到本页。
+            规范由设计系统组维护。需要新增条目或修订既有规范，请在顶部导航「业务需求」中发起，评审通过后统一发布到本页。
           </div>
         </Panel>
       </div>

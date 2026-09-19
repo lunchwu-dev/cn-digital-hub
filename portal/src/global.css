@@ -161,7 +161,7 @@ body {
   align-items: center;
   gap: 6px;
   height: 36px;
-  padding: 0 14px;
+  padding: 0 11px; /* 02b §A.1 最终值：7 项 × padding 0 11px = nav 706px */
   border-radius: 999px;
   color: #c7cbd1;
   font-size: 14px;
@@ -260,27 +260,25 @@ body {
       正确顺序：logo 副标题 → 搜索文字 → agent 文字 → 导航文字。
    2) 折叠用 className + 媒体查询离散控制，不用 flex-wrap 连续降级（wrap 先折行后收缩，
       会让「越宽越矮」的非单调高度）。断点数值须实测，且各分界留 ≥16px 余量。 */
-@media (max-width: 1271px) {
-  /* T2（1012–1271）：保住导航文字（关键），先牺牲 logo 副标题 + 搜索文字 + agent 文字。
-     分界 1271 是实测定的：T1 内容(含 gap)=1187px，容器内宽 = vw−64，取 1271 使 T1 起点
-     1272 处余量 = 1208−1187 = 21px（≥16）。 */
+/* —— 顶栏分档 v2（7 项导航 + Agent 移至悬浮 doodle 后重算）——
+   净预算口径：容器 max-width 1280 - padding 64 = 内宽 = vw - 64（≤900 时 padding 32）。
+   门槛 = 该档最大内容宽 + 16px 余量 + 64。每一档的算术见 02b-spec §A.1/A.3。
+   牺牲顺序（不变，删掉已消失的「agent 文案」一档）：logo 副标题 → 搜索文案 → 导航文字 → 手机折叠。
+   ⚠️ 原分档（1272/1012）已作废；《一页速查》与 §A.1 最终值为准：T1≥1312 / T2 1164–1311 / T3 941–1163 / T4 768–940 / T5 ≤767。 */
+@media (max-width: 1311px) {
+  /* T2 1164–1311：先牺牲「非导航」的辅助信息 */
   .dp-logo-sub {
     display: none;
   }
   .dp-search-label {
-    display: none; /* 胶囊转图标态 */
-  }
-  .dp-agent-label {
-    display: none; /* Agent 只留图标 */
+    display: none;
   }
   .dp-search-wrap {
-    flex: 0 0 auto; /* 图标态：宽度由内容决定 */
+    flex: 0 0 auto;
   }
 }
-@media (max-width: 1011px) {
-  /* T3（768–1011）：导航也转图标态。
-     T2 内容(含 gap)=929px → 取 1011 使 T2 起点 1012 处余量 = 948−929 = 19px（≥16）。
-     T3 自身内容(含 gap)=621px，768 处余量充足。 */
+@media (max-width: 1163px) {
+  /* T3 941–1163：导航转图标态（文字最后牺牲，与「导航是路标」一致） */
   .dp-nav-text {
     display: none;
   }
@@ -288,33 +286,31 @@ body {
     padding: 0 10px;
   }
 }
-@media (max-width: 767px) {
-  /* T4：手机。≥768 要求严格单行；手机才允许换行（已知取舍：375px 顶栏多行，非汉堡抽屉） */
-  .dp-topbar-inner {
-    flex-wrap: wrap;
-    gap: 12px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-  .dp-search-label {
-    display: none;
-  }
-  .dp-search-kbd {
-    display: none;
-  }
-  .dp-logo-sub {
-    display: none;
-  }
-  .dp-agent-label {
-    display: none;
-  }
-  .dp-nav-text {
+@media (max-width: 940px) {
+  /* T4 768–940：logo 只留符号，保证 7 个图标不挤 */
+  .dp-logo-text {
     display: none;
   }
   .dp-nav-item {
     padding: 0 8px;
   }
 }
+@media (max-width: 767px) {
+  /* T5 手机：唯一允许换行的档 */
+  .dp-topbar-inner {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .dp-search-kbd {
+    display: none;
+  }
+  .dp-nav-item {
+    padding: 0 8px;
+  }
+}
+/* 7 项导航的每项内边距基础值见上方 .dp-nav-item 的 padding（02b §A.1 最终值） */
 
 /* —— 紧凑列表行（56px，hover 底 #F5F4F5）—— */
 .dp-row {
@@ -447,6 +443,45 @@ body {
   }
 }
 
+/* —— 标签矩阵内网格：卡更小，gap 需更紧 ——
+   不改 .dp-grid 默认 gap 16px（否则全站连带）。标签卡比常规卡片小，
+   16px 会显得松散、读不出「同一标签的两行」与「相邻两个标签」的分组差异。 */
+.dp-grid--tight {
+  gap: 12px;
+}
+
+/* —— 标签体系 · 两处必须写进 global.css 的重排（内联 style 无法被媒体查询覆盖）——
+   ① 个人页页头：≤900px 改纵向（头像在上、姓名与主标签换行到下方）
+   ② 标签反查页结果行：≤900px 内容纵向堆叠（姓名行 / 标签行）
+   注意：这两处**不是**顶栏，不存在「高度单调」约束（README 断言 2/3 是顶栏专用），
+   因此可以放心用 flex-wrap: wrap，不会踩顶栏那两个坑。 */
+@media (max-width: 900px) {
+  .dp-person-head {
+    flex-wrap: wrap;
+  }
+  .dp-person-head-main {
+    flex-direction: column;
+  }
+  .dp-person-head-tags {
+    width: 100%;
+    align-items: flex-start !important;
+    margin-top: 4px;
+  }
+  .dp-tagbrowse-row {
+    flex-wrap: wrap;
+  }
+  .dp-tagbrowse-row-main {
+    flex-direction: column;
+  }
+  /* 反查页分区名：窄屏下「分区名 + chips」同行会让 chips 只剩 100px 宽，
+     改为分区名上方独立一行、chip 组在其下。 */
+  .dp-tagbrowse-group {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 6px !important;
+  }
+}
+
 /* —— 滚动条（轻量中性）—— */
 *::-webkit-scrollbar {
   width: 10px;
@@ -480,7 +515,9 @@ body {
   /* 必须与 .dp-container 一样自居中：父级 <main> 是 block，不会替它居中，
      否则宽视口下顶栏（.dp-container）居中、正文（.dp-shell）靠左，产生错位 */
   margin: 0 auto;
-  padding: 24px 32px 64px;
+  /* 底部留白从 64 提到 96（= 悬浮 doodle 52 + 24 + 20），避免常驻 doodle 遮挡页面尾部
+     —— 02b §B.6。这是「用纯 CSS 让内容主动让位」，不是躲藏行为。 */
+  padding: 24px 32px 96px;
 }
 @media (max-width: 900px) {
   .dp-container {
@@ -488,8 +525,65 @@ body {
     padding-right: 16px;
   }
   .dp-shell {
-    padding: 16px 16px 48px;
+    padding: 16px 16px 88px;
   }
+}
+
+/* —— 首页「需求提交」入口大卡：单列档收窄左右内边距 ——
+   大卡常态左内边距 26px = 4px 强调条 + 20px 内容边距 + 2px 视觉补偿；
+   ≤900px 塌成单列后单行内宽只剩 375-32-40=303px，必须降到 20px（4px + 16px），
+   否则标题要换 3 行。这是 spec 第 2.5 节「375 档」的实测要求，
+   不是装饰性规则，因此允许写入 global.css。 */
+@media (max-width: 900px) {
+  .dp-demand-entry-body {
+    padding-left: 20px !important;
+    padding-right: 16px !important;
+  }
+}
+
+/* —— 需求提交页 · 双栏右栏（spec 第 3.4 节）——
+   右栏是「承诺卡 / BRD 助手 / 公开列表」的纵向堆叠容器。
+   桌面态是 display:flex column；≤900px 时**整块**塌到表单下方、同时用
+   `display:contents` 让容器「消失」，使各卡与表单同级，再用 order 重排。
+
+   ⚠️ 这里刻意不使用通用栅格类 `.dp-g2/.dp-g3/.dp-g4`：
+   `.dp-g4` 在 ≤1240px 会先塌成 2 列，会把「承诺卡 + 公开列表」并排，
+   与 spec 第 3.4 节「右栏纵向堆叠、窄屏提到表单上方」的布局冲突。
+   因此桌面态必须用本类自己的 flex column 表达——这条规则是**结构性必需**，
+   不是装饰性 CSS，故写入 global.css。
+
+   顺序变为 承诺卡 → BRD 助手 → 表单。
+   （02b §E.5：公开列表已移出二级页 → 原 `.dp-demand-recent{order:4}` 已删除，
+     它在本文件里已无任何元素可命中。） */
+.dp-demand-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .dp-demand-side {
+    display: contents;
+  }
+  .dp-demand-promise {
+    order: 1;
+  }
+  .dp-demand-assistant {
+    order: 2;
+  }
+  .dp-demand-form-col {
+    order: 3;
+  }
+}
+
+/* —— 需求提交页 · 双栏容器显式声明「grid 子项」——
+   作用有二：
+   ① 让 ≤900px 的 `display:contents` 重排在**真实的栅格子项**上生效
+      （若容器仍是未声明的 flex/block，栅格会把整块当单一子项，order 无法重排其内部卡片）；
+   ② 让 jsdom 冒烟测试在**无法计算媒体查询布局**的环境里，仍能通过计算样式
+      区分「桌面态：右侧并列」与「窄屏态：容器消失、卡片与表单同级」，
+      从而对视觉顺序给出可判定的断言锚点（见 tests/smoke.cjs）。 */
+.dp-g-spec > * {
+  min-width: 0;
 }
 
 /* —— 锚点跳转偏移 —— */
@@ -551,4 +645,228 @@ section[id^='grp-'] {
   font-size: 12px;
   line-height: 1;
   white-space: nowrap;
+}
+
+/* ==========================================================================
+   02b 站点结构重构 · 新增结构样式
+   —— 以下均照抄 02b-spec 的施工级 CSS 块。
+   —— 颜色一律用字面量（§B.2 裁决）：本文件只定义了 --dp-font-mono 一个变量，
+      其余颜色全是字面量；「结构性样式」用字面量，「主题可变样式」才走 useT()。
+   ========================================================================== */
+
+/* —— 悬浮 Agent doodle（替代 TopBar 的 Agent for Digital 按钮）——
+   层叠：z-index 900 —— 高于 Watermark(9)，低于 antd Drawer/Modal(>1000)。
+   注：本项目 Watermark 的 zIndex={9} 是「水印在内容之上、在浮层之下」，
+   doodle 必须在它之上，否则水印斜纹会盖在 doodle 上（且 doodle 在 Watermark
+   子树外，本身已不受其影响 —— 但仍显式声明 z-index 以免将来嵌套变化时静默错层）。 */
+.dp-float-agent {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 900;
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1.5px solid #3643ba;
+  color: #3643ba;
+  cursor: pointer;
+  font-size: 24px;
+  padding: 0;
+  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  box-shadow: 0 8px 24px rgba(0, 15, 23, 0.14), 0 2px 6px rgba(0, 15, 23, 0.06);
+}
+.dp-float-agent:hover {
+  background: #eef0fb;
+  border-color: #2c3799;
+  transform: translateY(-1px);
+}
+.dp-float-agent:active {
+  transform: scale(0.96);
+}
+/* ⚠️ 白底上不能用黄环：黄色 #FFCD4E on white 只有 1.51:1，不满足非文本 3:1。
+   顶栏用黄环是因为底是深墨 #000F17（12.6:1 ✓）—— 同一范式不能跨底色照抄。
+   这里用品牌蓝 #3643BA（on white = 8.53:1 ✓）。 */
+.dp-float-agent:focus-visible {
+  outline: 2px solid #3643ba;
+  outline-offset: 2px;
+}
+/* 提示点：无数字、无红黄绿 */
+.dp-float-agent .dp-float-agent-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #3643ba;
+  border: 2px solid #ffffff;
+}
+@media (max-width: 767px) {
+  .dp-float-agent {
+    right: 16px;
+    bottom: 16px;
+    width: 48px;
+    height: 48px;
+  }
+}
+@media (max-height: 500px) {
+  .dp-float-agent {
+    right: 12px;
+    bottom: 12px;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dp-float-agent {
+    transition: none;
+  }
+  .dp-float-agent:hover {
+    transform: none;
+  }
+  .dp-float-agent:active {
+    transform: none;
+  }
+}
+
+/* —— Agent 轻面板（由 Drawer 改造为右下角贴边浮窗）——
+   贴边 380×560；圆角 12px（浮层圆角，不是卡片 8px）；无遮罩；
+   z-index:950 高于 doodle(900)，因此 doodle 仍可见、仍可点击 → 点击即「收起面板」。 */
+.dp-agent-panel {
+  position: fixed;
+  right: 24px;
+  bottom: 96px;
+  z-index: 950;
+  width: 380px;
+  max-height: calc(100vh - 140px);
+  display: flex; /* ← 桌面态 flex 由「类」表达，不在 JSX 写内联 display（红线 1） */
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e1e0df;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 15, 23, 0.14), 0 2px 6px rgba(0, 15, 23, 0.06);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out, visibility 0.18s;
+}
+.dp-agent-panel[data-open='true'] {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+@media (max-width: 767px) {
+  /* 手机：面板占满宽度减去边距，高度占屏幕下部 70% */
+  .dp-agent-panel {
+    left: 12px;
+    right: 12px;
+    bottom: 76px;
+    width: auto;
+    max-height: 70vh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dp-agent-panel {
+    transition: none;
+  }
+}
+
+/* —— 需求状态楼层（02b §D.4）：5 格横向，≤900 折为 2 列，≤560 折为 1 列 ——
+   桌面态布局由本类表达，不在 JSX 写内联 display（红线 1）。 */
+.dp-floor {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.dp-floor-cell {
+  padding: 16px 18px;
+  border-right: 1px solid #e1e0df; /* 格间分隔线 */
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.dp-floor-cell:last-child {
+  border-right: none;
+}
+.dp-floor-cell:hover {
+  background: #eef0fb;
+}
+.dp-floor-cell[data-static='true'] {
+  cursor: default;
+}
+.dp-floor-cell[data-static='true']:hover {
+  background: transparent;
+}
+.dp-floor-cell:focus-visible {
+  outline: 2px solid #3643ba;
+  outline-offset: -2px;
+}
+.dp-floor-cell[aria-pressed='true'] {
+  background: #eef0fb;
+  box-shadow: inset 0 -2px 0 #3643ba;
+}
+@media (max-width: 900px) {
+  .dp-floor {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dp-floor-cell {
+    border-bottom: 1px solid #e1e0df;
+  }
+  .dp-floor-cell:nth-child(2n) {
+    border-right: none;
+  }
+  .dp-floor-cell:nth-last-child(-n + 1) {
+    border-bottom: none;
+  }
+}
+@media (max-width: 560px) {
+  .dp-floor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dp-floor-cell {
+    border-right: none;
+  }
+}
+
+/* —— 字段级 agent 图标（02b §E.1）——
+   挂在 FieldLabel 内，与「必填」同行；静止中性、hover 品牌蓝；
+   点击后就地在该字段下方展开一行建议（引用块样式，左侧 2px 品牌蓝竖线）。 */
+.dp-field-agent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+.dp-field-agent:hover {
+  color: #3643ba;
+  background: #eef0fb;
+}
+.dp-field-agent[aria-expanded='true'] {
+  color: #3643ba;
+}
+.dp-field-agent:focus-visible {
+  outline: 2px solid #3643ba;
+  outline-offset: 2px;
+}
+.dp-field-agent-hint {
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 2px solid #c3c9f0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #616161;
 }

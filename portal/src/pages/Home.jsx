@@ -1,6 +1,6 @@
 /**
  * 首页 · 今日 Hub —— 主编排层
- * 结构：置顶决议 → 健康度快照 → 双栏（Release 时间线 / 里程碑）→ 快捷入口 → Agent 引导条
+ * 结构：置顶决议 → 健康度快照 → 双栏（Release 时间线 / 里程碑）→ 需求提交入口 → 快捷入口 → Agent 引导条
  */
 import React, { useState } from 'react';
 import { Button, Space, Tooltip } from 'antd';
@@ -19,10 +19,14 @@ import {
   milestones,
   quickLinks,
   releaseStatusMap,
+  demandEntryCopy,
+  demandStats,
   META,
 } from '../data/mock';
 import { useT } from '../theme';
 import { SectionTitle, Panel, PanelHead, KpiTile, Pill, YellowMark, ContentMeta } from '../components/ui';
+import DemandEntryCard from '../components/demand/DemandEntryCard';
+import DemandRecentList from '../components/demand/DemandRecentList';
 import { IconByName } from '../components/icons';
 import { go } from '../router';
 
@@ -90,7 +94,7 @@ function PinnedCard({ item }) {
   );
 }
 
-export default function Home({ onOpenAgent }) {
+export default function Home({ onOpenAgent, demandRows }) {
   const c = useT();
 
   return (
@@ -232,7 +236,34 @@ export default function Home({ onOpenAgent }) {
         </Panel>
       </section>
 
-      {/* 4. 快捷入口 */}
+      {/* 4. 需求提交入口 —— 入口大卡（span 2）+ 公开列表（span 2）
+          位置裁决：承载「动作」的入口排在承载「检索」的快捷入口之前，
+          形成「办不了的事 → 去工具里办」的自然递进。 */}
+      <section style={{ marginBottom: 32 }}>
+        <SectionTitle
+          title="提交需求"
+          desc={demandEntryCopy.sectionDesc}
+          extra={
+            <Button type="link" onClick={() => go('#/demand')} style={{ padding: 0 }}>
+              查看全部需求 <ArrowRightOutlined />
+            </Button>
+          }
+        />
+        <div className="dp-grid dp-g4">
+          <DemandEntryCard
+            stats={demandStats(demandRows)}
+            copy={demandEntryCopy}
+            onSubmit={() => go('#/demand/new')}
+            onGuide={() => go('#/demand')}
+          />
+          <Panel style={{ gridColumn: 'span 2', overflow: 'hidden' }}>
+            <PanelHead title={demandEntryCopy.listTitle} desc={demandEntryCopy.listDesc} />
+            <DemandRecentList rows={demandRows} max={3} onItemClick={() => go('#/demand')} />
+          </Panel>
+        </div>
+      </section>
+
+      {/* 5. 快捷入口 */}
       <section style={{ marginBottom: 32 }}>
         <SectionTitle
           title="快捷入口"
@@ -268,7 +299,7 @@ export default function Home({ onOpenAgent }) {
         </div>
       </section>
 
-      {/* 5. Agent 引导条 */}
+      {/* 6. Agent 引导条 */}
       <Panel style={{ padding: '14px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <span

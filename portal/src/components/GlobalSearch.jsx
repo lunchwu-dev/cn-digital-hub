@@ -5,7 +5,7 @@
 import React, { useMemo, useState } from 'react';
 import { Input, Modal, Empty, Typography, Space } from 'antd';
 import { SearchOutlined, RightOutlined } from '@ant-design/icons';
-import { announcements, releaseNotes, projectUpdates, faqs, bestPractices, toolGroups, articles } from '../data/mock';
+import { announcements, releaseNotes, projectUpdates, faqs, bestPractices, toolGroups, articles, orgPeople, personTags, personId, TAG_BY_ID, TAG_DICT as TAG_LIST } from '../data/mock';
 import { useT } from '../theme';
 import { Pill, BrandSymbol } from './ui';
 import { go } from '../router';
@@ -17,6 +17,18 @@ const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
 
 function buildIndex() {
   const idx = [];
+  // 人员：找人是最强意图 → 排在最前（分组渲染顺序即 push 顺序）
+  orgPeople.forEach((p) => {
+    const tagIds = Object.keys(personTags[personId(p.email)] || {});
+    const tagLabels = tagIds.map((tid) => (TAG_BY_ID[tid] ? TAG_BY_ID[tid].label : '')).filter(Boolean);
+    idx.push({
+      group: '人员',
+      title: p.name,
+      desc: `${p.dept} · ${p.role} · ${tagLabels.join('/')}`,
+      path: '#/workspace/people/' + personId(p.email),
+      kw: `${p.name}${p.dept}${p.role}${p.email}${(p.tags || []).join('')}${tagLabels.join('')}`,
+    });
+  });
   announcements.forEach((a) =>
     idx.push({ group: '公告与决议', title: a.title, desc: a.summary, path: '#/news', kw: `${a.title}${a.summary}${(a.tags || []).join('')}` })
   );
@@ -52,6 +64,17 @@ function buildIndex() {
       idx.push({ group: '工具导航', title: t.name, desc: `${t.purpose} · Owner ${t.owner}`, path: '#/workspace', kw: `${t.name}${t.purpose}${t.owner}${g.label}` })
     )
   );
+  // 标签：搜「谁懂 RAG」→ 直达反查页。只索引 active 词（deprecated/merged 不再可选）。
+  TAG_LIST.forEach((t) => {
+    if (t.status !== 'active') return;
+    idx.push({
+      group: '标签',
+      title: t.label,
+      desc: `${t.axis === 'domain' ? '领域轴' : '能力类型轴'} · ${t.group}`,
+      path: '#/workspace/tags/' + t.id,
+      kw: `${t.label}${t.group}${(t.aliases || []).join('')}`,
+    });
+  });
   // 去重（最佳实践与 articles 有重叠）
   const seen = new Set();
   return idx.filter((i) => {
@@ -105,7 +128,7 @@ export default function GlobalSearch({ open, onClose }) {
           <Input
             autoFocus
             variant="borderless"
-            placeholder="搜索公告 / Release / 工具 / FAQ / 最佳实践"
+            placeholder="搜索公告 / 人员 / 标签 / Release / 工具 / FAQ"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onPressEnter={() => {

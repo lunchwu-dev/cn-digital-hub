@@ -43,7 +43,7 @@ function resolveArticle(id) {
         },
         {
           type: 'p',
-          text: '你可以直接在工作台「需求提交」中提交补充，或在知识中心 FAQ 里登记具体问题。',
+          text: '你可以直接在顶部导航「业务需求」里提交补充，或在知识中心 FAQ 里登记具体问题。',
         },
       ],
     },
@@ -145,7 +145,7 @@ export default function ArticleDetail({ id }) {
             }}
           >
             <span style={{ fontSize: 12, color: c.text3 }}>
-              内容负责人：<span style={{ color: c.text2 }}>{article.owner}</span> · 内容修订请走工作台「需求提交」
+              内容负责人：<span style={{ color: c.text2 }}>{article.owner}</span> · 内容修订请走顶部导航「业务需求」
             </span>
             <Space size={8}>
               <Button icon={<ArrowLeftOutlined />} onClick={() => go('#/knowledge')}>

@@ -4,7 +4,7 @@
  *   - 每个界面顺便量 getBoundingClientRect().left，用来「证明」栅格对齐而不只是「看着像」。
  *   - 截图前移除首次引导 Tour 遮罩，保证画面干净。
  *   - 响应式断言 4 组：① 连续溢出 ② 顶栏高恒等(≥768)+单调 ③ 内容不变式(仅 ≥768，余量 ≥16px)
- *     ④ navText 上区间(无 ✓→✗)+≥1012 可见；外加「前置哨兵」与「空数据计为失败」两道保险。
+ *     ④ navText 上区间(无 ✓→✗)+≥T_B2(1164) 可见；外加「前置哨兵」与「空数据计为失败」两道保险。
  *
  * 运行：
  *   set NODE_PATH=C:\Users\uuzz\.workbuddy\binaries\node\workspace\node_modules
@@ -84,8 +84,24 @@ const MEASURE = `JSON.stringify((()=>{
     return cs.display !== 'none' && cs.visibility !== 'hidden';
   };
   const tb = document.querySelector('.dp-topbar');
+  const fa = document.querySelector('.dp-float-agent');
+  const fr = fa ? fa.getBoundingClientRect() : null;
+  // 悬浮 doodle 遮挡复核（02b §B.2 / §B.4）：fixed 元素不随滚动，故需证明
+  //   ① 它在视口内（fixed right/bottom 生效）② 不与 sticky 顶栏相交 ③ 页面底部预留了 ≥doodle 高的内边距
+  const shellCS = shell ? getComputedStyle(shell) : null;
+  // #/demand/new 表单顺序几何（仅该页有 .dp-g-spec）：promise / assistant / form 的 top/left。
+  //   ≤900 单列：三张卡 left 相同、top 递增 promise<assistant<form（display:contents 拆掉右栏）。
+  //   >900 双栏：form 与右栏 left 不同；右栏内 promise.top<assistant.top。
+  const G = (sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; };
+  const specGeom = document.querySelector('.dp-g-spec') ? {
+    form: G('.dp-demand-form-col'),
+    side: G('.dp-demand-side'),
+    promise: G('.dp-demand-promise'),
+    assistant: G('.dp-demand-assistant'),
+  } : null;
   return {
     vw: window.innerWidth,
+    vh: window.innerHeight,
     shellLeft: L(shell),
     containersLeft: containers,
     scrollWidth: de.scrollWidth,
@@ -95,14 +111,23 @@ const MEASURE = `JSON.stringify((()=>{
     searchLabel: vis('.dp-search-label'),
     agentLabel: vis('.dp-agent-label'),
     logoSub: vis('.dp-logo-sub'),
+    floatAgent: fr ? { left: Math.round(fr.left), top: Math.round(fr.top), right: Math.round(fr.right), bottom: Math.round(fr.bottom), w: Math.round(fr.width), h: Math.round(fr.height) } : null,
+    floatInViewport: fr ? (fr.left >= 0 && fr.top >= 0 && fr.right <= window.innerWidth && fr.bottom <= window.innerHeight) : null,
+    floatBelowTopbar: fr && tb ? fr.top >= tb.getBoundingClientRect().bottom : null,
+    shellPadBottom: shellCS ? parseFloat(shellCS.paddingBottom) : null,
+    specGeom,
   };
 })())`;
 
 const KILL_TOUR = `document.querySelectorAll('.ant-tour,.ant-tour-mask,.ant-tour-target-placeholder').forEach(n=>n.remove())`;
 
-const OPEN_AGENT = `(()=>{const b=Array.from(document.querySelectorAll('button')).find(x=>/Agent for Digital/.test(x.textContent));if(b)b.click();return !!b})()`;
+// 02b §B：Agent 入口已从顶栏按钮移为右下角悬浮 doodle（.dp-float-agent，图标按钮无文字），
+// 故改按 class 命中；旧 textContent 匹配 /Agent for Digital/ 对新图标按钮恒为 false。
+const OPEN_AGENT = `(()=>{const b=document.querySelector('.dp-float-agent');if(b)b.click();return !!b})()`;
 const OPEN_SEARCH = `(()=>{const b=document.querySelector('[aria-label="打开全局搜索"]');if(b)b.click();return !!b})()`;
 const TYPE_SEARCH = `(()=>{const i=document.querySelector('.ant-modal input');if(!i)return false;const s=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;s.call(i,'积分');i.dispatchEvent(new Event('input',{bubbles:true}));return true})()`;
+// 切到「功能 / 系统」（BRD 完整档）：只有完整档才渲染 .dp-demand-assistant，几何门依赖它。
+const CLICK_BRD = `(()=>{const it=Array.from(document.querySelectorAll('.ant-segmented-item')).find(x=>/功能 \\/ 系统/.test(x.textContent));if(it)it.click();return !!it})()`;
 
 const SHOTS = [
   { name: '01-home-1440', hash: '#/home', w: 1440, h: 1500 },
@@ -126,13 +151,32 @@ const SHOTS = [
     pre: `(()=>{const t=Array.from(document.querySelectorAll('.ant-tabs-tab')).find(x=>/产品 Release/.test(x.textContent));if(t)t.click();return !!t})()`,
     settle: 700,
   },
-  // 窄屏折叠（≤1023 折叠导航文字 / ≤767 只留图标 + 隐藏副标题）：验证顶栏折叠后无横向溢出
+  // 窄屏折叠（顶栏分档 v2：T1≥1312 / T2 1164–1311 / T3 941–1163 / T4 768–940 / T5 ≤767；
+  // navText 在 ≤1163 折叠，logo 副标题在 ≤767 隐藏）：验证顶栏折叠后无横向溢出 + 悬浮 doodle 不遮挡正文
   { name: '12-home-768', hash: '#/home', w: 768, h: 1400 },
   { name: '13-workspace-768', hash: '#/workspace', w: 768, h: 1400 },
   { name: '14-ops-768', hash: '#/ops', w: 768, h: 1500 },
   { name: '15-home-375', hash: '#/home', w: 375, h: 1600, mobile: true },
   { name: '16-workspace-375', hash: '#/workspace', w: 375, h: 1600, mobile: true },
   { name: '17-ops-375', hash: '#/ops', w: 375, h: 1700, mobile: true },
+  // 标签体系新页面（个人主页 + 反查页）
+  { name: '18-person-1440', hash: '#/workspace/people/min.zhou', w: 1440, h: 1500 },
+  { name: '19-person-768', hash: '#/workspace/people/min.zhou', w: 768, h: 1700 },
+  { name: '20-tags-1440', hash: '#/workspace/tags', w: 1440, h: 1500 },
+  { name: '21-tags-375', hash: '#/workspace/tags', w: 375, h: 1700, mobile: true },
+  // 站点重构一级栏目：业务需求（楼层 5 格）+ 组织速查 + 需求提交（表单顺序两档）
+  //   #/demand：1440 验楼层一行；375 验窄屏换行
+  { name: '22-demand-1440', hash: '#/demand', w: 1440, h: 1400 },
+  { name: '23-demand-375', hash: '#/demand', w: 375, h: 1700, mobile: true },
+  //   #/demand/new：900 验单列顺序（promise→assistant→form）；375 验更窄；1280 验双栏
+  //   注意：该页按规范刻意卸载 doodle（shots.cjs:415 已允许「量不到不算失败」）。
+  //   先点「功能 / 系统」档，让完整档的 BRD 助手卡（.dp-demand-assistant）渲染出来再量。
+  { name: '24-demandnew-900', hash: '#/demand/new', w: 900, h: 2400, pre: CLICK_BRD, settle: 800 },
+  { name: '25-demandnew-1280', hash: '#/demand/new', w: 1280, h: 2000, pre: CLICK_BRD, settle: 800 },
+  { name: '26-demandnew-375', hash: '#/demand/new', w: 375, h: 2600, mobile: true, pre: CLICK_BRD, settle: 800 },
+  //   组织速查：1440 + 768
+  { name: '27-org-1440', hash: '#/org', w: 1440, h: 1500 },
+  { name: '28-org-768', hash: '#/org', w: 768, h: 1700 },
 ];
 
 /* 断言集：连续扫描 + 路由抽点。
@@ -145,15 +189,23 @@ const SCAN_ROUTES = [
   { name: 'ops', hash: '#/ops' },
   { name: 'knowledge', hash: '#/knowledge' },
   { name: 'workspace', hash: '#/workspace' },
+  { name: 'people', hash: '#/workspace/people/min.zhou' },
+  { name: 'tags', hash: '#/workspace/tags' },
+  // 站点重构后升为一级栏目的三条：必须在「唯一能做真实几何测量」的通道里被量过。
+  { name: 'org', hash: '#/org' },
+  { name: 'demand', hash: '#/demand' },
+  { name: 'demand-new', hash: '#/demand/new' },
 ];
 const OVERFLOW = `JSON.stringify((()=>{const de=document.documentElement;return {scrollWidth:de.scrollWidth,clientWidth:de.clientWidth}})())`;
 
-/* 连续扫描范围与分界（分界值须与 global.css 一致；此处用于断言3 取点） */
+/* 连续扫描范围与分界（分界值须与 global.css 一致；此处用于断言3 取点）
+   顶栏分档 v2（7 项导航 + Agent 移出顶栏）：T1≥1312 / T2 1164–1311 / T3 941–1163 / T4 768–940 / T5 ≤767。
+   navText 在 ≤1163 才隐藏，故可见下界 T_B2 = 1164（原 1012 分档已作废，见 global.css 注释）。 */
 const SWEEP_MIN = 375;
 const SWEEP_MAX = 1920;
-const T_B1 = 1272; // global.css 的 T1 起点（媒体查询 max-width:1271px）
-const T_B2 = 1012; // global.css 的 T2 起点（媒体查询 max-width:1011px）
-const NAVTEXT_MUST = [1024, 1152, 1200, 1280, 1440]; // 断言4：这些宽度 navText 必须可见
+const T_B1 = 1312; // global.css 的 T1 起点（媒体查询 max-width:1311px）
+const T_B2 = 1164; // navText 可见下界（媒体查询 max-width:1163px 才隐藏导航文字）
+const NAVTEXT_MUST = [1164, 1280, 1440, 1600, 1920]; // 断言4：这些宽度 navText 必须可见
 
 /* 连续扫描每档要量：溢出 / 顶栏高 / 折叠态 / 三段内容宽（供断言3） */
 const SWEEP_MEASURE = `JSON.stringify((()=>{
@@ -388,6 +440,75 @@ async function main() {
   const overflowShots = report.filter((r) => r.measure && typeof r.measure === 'object' && r.measure.scrollWidth > r.measure.clientWidth);
   if (overflowShots.length) failures.push(`截图溢出：${overflowShots.map((r) => r.name).join(', ')}`);
 
+  // 断言1b：悬浮 doodle 几何复核（02b §B.2/§B.4）——
+  //   每张截图都须量到 .dp-float-agent（存在）+ 位于视口内（fixed right/bottom 生效）+ 不与顶栏相交。
+  //   #/demand/new 二级页按 spec 刻意卸载 doodle，故仅对「量到该元素」的截图断言几何；量不到不算失败。
+  for (const r of report) {
+    const m = r.measure;
+    if (!m || typeof m !== 'object' || !m.floatAgent) continue;
+    if (m.floatInViewport !== true) failures.push(`doodle 越出视口 ${r.name}：${JSON.stringify(m.floatAgent)} vw=${m.vw} vh=${m.vh}`);
+    if (m.floatBelowTopbar === false) failures.push(`doodle 与顶栏相交 ${r.name}：doodle.top=${m.floatAgent.top}，顶栏高=${m.topbarH}`);
+  }
+
+  // 断言1c：★ 真实几何门 —— #/demand/new 表单顺序（这是唯一能实测 DOM 几何的通道，
+  //   jsdom 没有布局引擎，smoke 里的 ≤900px 媒体块检查只能是「样式表规则级」而非实测）。
+  //   规范：#/demand/new 用 .dp-grid.dp-g-spec（左表单 1.5fr : 右栏 1fr）；
+  //     ≤900px 中右栏 display:contents 拆掉，三张卡（promise / assistant / form）落回单列，
+  //        DOM order 由媒体块里 .dp-demand-*{order:n} 重排为 promise→assistant→form；
+  //     >900px 恢复双栏：form 在左、右栏在右，右栏内 promise 在 assistant 之上。
+  //   用 getBoundingClientRect().top/left 证明「顺序真的生效」，而不是「样式表里写了 order」。
+  const specShots = report.filter((r) => r.measure && typeof r.measure === 'object' && r.measure.specGeom);
+  const specBy = (name) => specShots.find((r) => r.name === name);
+  const geq = (a, b) => typeof a === 'number' && typeof b === 'number';
+  const chk = (r, label, cond, detail) => {
+    if (!r) {
+      failures.push(`断言1c 几何门缺图 ${label}：未找到该截图或未量到 specGeom`);
+      return;
+    }
+    if (!cond) failures.push(`断言1c 表单顺序 ${label}：${detail}`);
+  };
+  // ≤900 单列档：三张卡 left 相同（同一列）且 top 递增 promise < assistant < form。
+  {
+    const r = specBy('24-demandnew-900');
+    const g = r && r.measure ? (r.measure.specGeom || {}) : {};
+    const { promise, assistant, form } = g;
+    const have = geq(promise && promise.top, assistant && assistant.top) && geq(assistant && assistant.top, form && form.top);
+    if (!have) failures.push('断言1c 表单顺序 24-demandnew-900：promise/assistant/form 的 top 未全部量到（可能未点「功能 / 系统」档，助手卡未渲染）');
+    else {
+      if (!(promise.top < assistant.top)) failures.push(`断言1c 表单顺序 24-demandnew-900：promise.top=${promise.top} 应 < assistant.top=${assistant.top}`);
+      if (!(assistant.top < form.top)) failures.push(`断言1c 表单顺序 24-demandnew-900：assistant.top=${assistant.top} 应 < form.top=${form.top}`);
+      if (!(promise.left === assistant.left && assistant.left === form.left)) failures.push(`断言1c 单列对齐 24-demandnew-900：三张卡 left 应相同，实为 promise=${promise.left} assistant=${assistant.left} form=${form.left}`);
+    }
+  }
+  // >900 双栏档：form.left 与右栏（side/promise/assistant）left 不同；右栏内 promise.top < assistant.top。
+  {
+    const r = specBy('25-demandnew-1280');
+    const g = r && r.measure ? (r.measure.specGeom || {}) : {};
+    const { promise, assistant, form } = g;
+    const have = geq(form && form.left, assistant && assistant.left) && geq(promise && promise.top, assistant && assistant.top);
+    if (!have) failures.push('断言1c 表单顺序 25-demandnew-1280：form.left / promise.top / assistant.top 未全部量到');
+    else {
+      if (!(form.left !== assistant.left)) failures.push(`断言1c 双栏 25-demandnew-1280：form.left=${form.left} 应 ≠ 右栏 left=${assistant.left}`);
+      if (!(promise.top < assistant.top)) failures.push(`断言1c 右栏顺序 25-demandnew-1280：右栏内 promise.top=${promise.top} 应 < assistant.top=${assistant.top}`);
+    }
+  }
+  // ≤900 窄屏档（375）：单列 —— 三张卡 left 相同且 promise.top < assistant.top。
+  {
+    const r = specBy('26-demandnew-375');
+    const g = r && r.measure ? (r.measure.specGeom || {}) : {};
+    const { promise, assistant, form } = g;
+    const have = geq(promise && promise.left, assistant && assistant.left) && geq(promise && promise.top, assistant && assistant.top);
+    if (!have) failures.push('断言1c 表单顺序 26-demandnew-375：promise/assistant 的 left/top 未量到');
+    else {
+      if (!(promise.left === assistant.left && assistant.left === form.left)) failures.push(`断言1c 窄屏单列 26-demandnew-375：三张卡 left 应相同，实为 promise=${promise.left} assistant=${assistant.left} form=${form.left}`);
+      if (!(promise.top < assistant.top)) failures.push(`断言1c 窄屏顺序 26-demandnew-375：promise.top=${promise.top} 应 < assistant.top=${assistant.top}`);
+    }
+  }
+  // 哨兵：三条新路由必须都在 report 中真实量到 specGeom / 至少真实渲染（防止 URL 拼错量到空页）。
+  if (!report.some((r) => r.hash === '#/demand/new' && r.measure && r.measure.specGeom)) {
+    failures.push('断言1c 哨兵：#/demand/new 的任何截图都未量到 .dp-g-spec —— 页面可能没渲染（检查路由与 CLICK_BRD）');
+  }
+
   // 断言2a（等值 —— 水平回归的守门员）：≥768 每一档顶栏高必须恒等于 1920 档。
   //   旧判据只禁「越宽越高」，对「高度不变的水平回归」全盲：若有人在 max-width:1300 里加 padding:4px 0，
   //   则 1280→69、1301→61，宽度增加高度下降 → 单调性通过；但 h(1280)=69 ≠ h(1920)=61 → 被这条抓住。
@@ -430,7 +551,7 @@ async function main() {
   }
   if (drops.length) failures.push(`断言4 navText 可见性非上区间（出现 ✓→✗）：${drops.slice(0, 5).join(' ')}${drops.length > 5 ? ` …共${drops.length}处` : ''}`);
 
-  // 断言4b（下界钉住）：navText 在 ≥1012 必须可见（本轮修复目标）。
+  // 断言4b（下界钉住）：navText 在 ≥T_B2(1164) 必须可见（顶栏分档 v2：≤1163 才隐藏导航文字）。
   const ntBad = sweepDesktop.filter((r) => r.w >= T_B2 && r.navText !== true);
   if (ntBad.length) failures.push(`断言4 navText 在 ≥${T_B2}px 不可见：${ntBad.length} 档，例 ${ntBad.slice(0, 5).map((r) => `${r.w}px`).join(', ')}`);
   // 断言4c（可读性锚）：显式抽点，与 4a/4b 等价但便于人读。
@@ -464,12 +585,25 @@ async function main() {
   }
   console.log(`  路由抽点 ${scan.length} 格，连续扫描 ${sweepDesktop.length}×2 档`);
 
+  /* #/demand/new 表单顺序几何实测值（人读）——证明「顺序」是量出来的，不是样式表里读出来的 */
+  console.log('\n  #/demand/new 表单顺序几何实测（getBoundingClientRect）：');
+  for (const nm of ['24-demandnew-900', '25-demandnew-1280', '26-demandnew-375']) {
+    const r = specBy(nm);
+    const g = r && r.measure ? r.measure.specGeom : null;
+    if (!g) {
+      console.log(`    ${nm}：未量到 specGeom`);
+      continue;
+    }
+    const f = (x) => (x ? `top=${x.top} left=${x.left} w=${x.w}` : 'null');
+    console.log(`    ${nm} (${r.viewport})  promise[${f(g.promise)}]  assistant[${f(g.assistant)}]  form[${f(g.form)}]  side[${f(g.side)}]`);
+  }
+
   if (failures.length) {
     console.error('\n[FAIL]');
     failures.forEach((f) => console.error('  - ' + f));
     process.exitCode = 1;
   } else {
-    console.log('\n[OK] 断言1–4 全部通过（无空数据 / 无溢出 / 顶栏高恒等且单调 / 内容不超宽 / navText 上区间且 ≥1012 可见）');
+    console.log(`\n[OK] 断言1–4 全部通过（含 #/demand/new 表单顺序真实几何门 900/1280/375；无空数据 / 无溢出 / 顶栏高恒等且单调 / 内容不超宽 / navText 上区间且 ≥${T_B2} 可见）`);
   }
 }
 
