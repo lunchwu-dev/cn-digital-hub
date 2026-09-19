@@ -1,0 +1,23 @@
+Chrome: Chrome/153.0.8010.47
+
+===== 首屏加载核验 (file://) =====
+{"origin":"file://","rootLen":1612,"scripts":[{"src":"34/portal/dist/assets/index.js","type":"(none)","defer":true}],"stylesheets":30,"hasModule":false,"hasCrossorigin":false,"topbarBg":"rgb(0, 15, 23)","fontUsed":"Roboto, -apple-system, \"Segoe UI\", \"PingFang SC\", \"Microsoft","btnRadius":"999px","cardRadius":null,"primary":"rgb(54, 67, 186)"}
+
+===== 路由逐条实机渲染 =====
+[FAIL] #/home  首页 · 今日 Hub  len=1612  MISSING=["健康度快照","核心系统可用性","近期 Release","里程碑精选"]
+        DECATHLON Digital | 中国 · 部门门户 | 首页 | 信息中心 | 监控运营 | 知识中心 | 工作台 | 搜索公告 / Release / 工具 / FAQ | / | Agent for Digital | 3 | 今日 Hub | Decathlon China · Digital 部门 · 重要决议、系统健康度与常用入口集中在这里 | 内容负责人：Digital 部门运营组 · 周敏 | 最后更新：2026-09-17 18:40 | 置顶决议 | 高时效、需周知的事项 | 
+[PASS] #/news  信息中心  len=971
+        DECATHLON Digital | 中国 · 部门门户 | 首页 | 信息中心 | 监控运营 | 知识中心 | 工作台 | 搜索公告 / Release / 工具 / FAQ | / | Agent for Digital | 3 | 信息中心 | 公告决议、产品发布与项目进展的统一入口 | 内容负责人：内容运营 · 孙玥 | 最后更新：2026-09-17 18:40 | 公告与决议 | 产品 Release | 项目动态 | 全部 | 上线通知 | 决议 | 流程 | 规范 | 安全 | 里程碑 | 时间范围 | 全部时间 | 重点 | 
+[FAIL] #/ops  监控运营  len=1365  MISSING=["稳定性状态","Grafana"]
+        DECATHLON Digital | 中国 · 部门门户 | 首页 | 信息中心 | 监控运营 | 知识中心 | 工作台 | 搜索公告 / Release / 工具 / FAQ | / | Agent for Digital | 3 | 监控运营 | L1 健康度概览 · 深度排查请下钻 | 内容负责人：SRE 组 · 何嘉 | 最后更新：2026-09-17 18:40 | 今日 | 7d | 30d | 最后刷新 2026-09-17 18:40 | 手动刷新 | 核心系统可用性 | 正常 | 99.95 | % | 0.0
+[FAIL] #/knowledge  知识中心  len=849  MISSING=["待补知识"]
+        DECATHLON Digital | 中国 · 部门门户 | 首页 | 信息中心 | 监控运营 | 知识中心 | 工作台 | 搜索公告 / Release / 工具 / FAQ | / | Agent for Digital | 3 | 知识中心 | 最佳实践、设计规范与可检索的 FAQ | 内容负责人：设计系统组 · 周敏 / 内容运营 · 孙玥 | 最后更新：2026-09-17 18:40 | 最佳实践 | 设计规范 | FAQ  | 3 | 全部 | 供应链 | 前端 | 平台 | 数据 | 门店 | 交易 | 供应链 | 2026
+[FAIL] #/knowledge/article/bp-stock-dedup  文章详情  len=1165  MISSING=["本文目录"]
+        DECATHLON Digital | 中国 · 部门门户 | 首页 | 信息中心 | 监控运营 | 知识中心 | 工作台 | 搜索公告 / Release / 工具 / FAQ | / | Agent for Digital | 3 | 首页 | / | 知识中心 | / | 最佳实践 | / | 大促期间库存扣减的一致性处理 | 最佳实践 / 供应链 | 长文 | 大促期间库存扣减的一致性处理 | 郑远 · 供应链数字化组 | 更新于 | 2026-09-12 | 约 9 分钟阅读 |  | 大促期间的库存扣减是一个「高并发 + 强一
+[FAIL] #/workspace  工作台  len=1078  MISSING=["Owner"]
+        DECATHLON Digital | 中国 · 部门门户 | 首页 | 信息中心 | 监控运营 | 知识中心 | 工作台 | 搜索公告 / Release / 工具 / FAQ | / | Agent for Digital | 3 | 工作台 | 工具服务目录、组织速查与需求受理 | 内容负责人：平台组 · 何嘉 / 内容运营 · 孙玥 | 最后更新：2026-09-17 18:40 | 工具导航 | 组织速查 | 需求提交 | 工具分组 | 监控与可观测 | 3 | 研发与交付 | 3 | 业务运营 | 3 | 数据与报表 | 2 | 
+[PASS] #/nope-404  404  len=304
+        DECATHLON Digital | 中国 · 部门门户 | 首页 | 信息中心 | 监控运营 | 知识中心 | 工作台 | 搜索公告 / Release / 工具 / FAQ | / | Agent for Digital | 3 | 页面不存在 | 没有匹配到路由「#/nope-404」。门户目前提供：今日 Hub、信息中心、监控运营、知识中心、工作台。 | 回到今日 Hub | 去知识中心 | 如果你是从旧链接进入，内容可能已被合并或迁移。 | Decathlon China · Digit
+
+===== 控制台错误 =====
+无（0 条）

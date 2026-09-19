@@ -1,0 +1,7 @@
+ARGS_MODE=foldband
+DIAG="{\"url\":\"file:///C:/Users/uuzz/WorkBuddy/2026-09-17-21-20-34/portal/dist/index.html#/home\",\"title\":\"Decathlon Digital · 部门门户\",\"bodyLen\":75430,\"rootKids\":1,\"topbar\":true,\"scripts\":[\"./assets/index.js\"],\"res\":[]}"
+EVENTS:
+Runtime.executionContextCreated
+  Page.domContentEventFired
+  Page.loadEventFired
+  Page.frameStoppedLoading

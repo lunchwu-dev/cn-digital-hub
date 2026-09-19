@@ -1,0 +1,14 @@
+const fs = require('fs');
+const path = 'C:/Users/uuzz/WorkBuddy/2026-09-17-21-20-34/portal/';
+const out = [];
+const css = fs.readFileSync(path + 'dist/assets/style.css', 'utf8');
+const src = fs.readFileSync(path + 'src/global.css', 'utf8');
+const topbar = fs.readFileSync(path + 'src/components/TopBar.jsx', 'utf8');
+out.push('dist css media queries: ' + JSON.stringify(css.match(/@media[^{]+/g) || []));
+out.push('src global.css media queries: ' + JSON.stringify(src.match(/@media[^{]+/g) || []));
+out.push('TopBar has dp-topbar class: ' + /dp-topbar/.test(topbar));
+out.push('TopBar media queries: ' + JSON.stringify(topbar.match(/@media[^{]+/g) || []));
+out.push('TopBar lines: ' + topbar.split('\n').length);
+out.push('global.css lines: ' + src.split('\n').length);
+fs.writeFileSync('C:/Users/uuzz/WorkBuddy/2026-09-17-21-20-34/outputs/_research/mqcheck.txt', out.join('\n'), 'utf8');
+console.log('done');

@@ -1,0 +1,10 @@
+const fs = require('fs');
+const dir = 'C:/Users/uuzz/WorkBuddy/2026-09-17-21-20-34/outputs/_research/';
+const src = dir + 'shots-mutant.txt';
+const buf = fs.readFileSync(src);
+let zeros = 0;
+for (let i = 1; i < Math.min(buf.length, 8000); i += 2) if (buf[i] === 0) zeros++;
+let txt = zeros > 800 ? buf.toString('utf16le') : buf.toString('utf8');
+txt = txt.replace(/^\uFEFF/, '');
+fs.writeFileSync(dir + 'clean-mutant.txt', txt, 'utf8');
+console.log('mode', zeros > 800 ? 'utf16le' : 'utf8', 'bytes', buf.length, 'lines', txt.split('\n').length);

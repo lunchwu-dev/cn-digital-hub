@@ -1,0 +1,19 @@
+宽度扫描（#/home，desktop emulation）—— 找全展开顶栏的最小可用宽度
+vw     scrollW  overflow  innerW  topbar子元素宽度
+1000  1000     0         1000    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1024  1024     0         1024    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1100  1100     0         1100    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1152  1152     0         1152    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1200  1200     0         1200    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1240  1240     0         1240    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1250  1250     0         1250    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1260  1260     0         1260    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1264  1264     0         1264    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1268  1268     0         1268    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1269  1269     0         1269    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1270  1270     0         1270    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1272  1272     0         1272    dp-logo=177  dp-nav=196  dp-topbar-actions=516
+1280  1280     0         1280    dp-logo=177  dp-nav=504  dp-topbar-actions=516
+1290  1290     0         1280    dp-logo=177  dp-nav=504  dp-topbar-actions=516
+1366  1366     0         1280    dp-logo=177  dp-nav=504  dp-topbar-actions=516
+1440  1440     0         1280    dp-logo=177  dp-nav=504  dp-topbar-actions=516

@@ -1,0 +1,20 @@
+===== 逐路由 / 逐 Tab 全文核验 =====
+[PASS] #/home  len=1612 card=0 btn=10 table=0
+[PASS] #/news  len=971 card=0 btn=2 table=0
+[FAIL] #/news 【产品 Release】  len=876 card=0 btn=2 table=1
+        缺失: ["Grafana"]
+[PASS] #/ops  len=1365 card=0 btn=6 table=0
+[PASS] #/knowledge  len=849 card=0 btn=2 table=0
+[FAIL] #/knowledge 【FAQ】  len=650 card=0 btn=3 table=0
+        缺失: ["这个回答有用吗"]
+[PASS] #/knowledge 【设计规范】  len=1105 card=0 btn=3 table=0
+[PASS] #/knowledge/article/bp-stock-dedup  len=1165 card=0 btn=6 table=0
+[PASS] #/workspace  len=1078 card=0 btn=13 table=0
+[PASS] #/workspace 【需求提交】  len=720 card=0 btn=14 table=1
+[PASS] #/workspace 【组织速查】  len=963 card=0 btn=14 table=2
+[PASS] #/nope-404  len=304 card=0 btn=4 table=0
+
+===== 控制台错误 =====
+无（0 条）
+
+===== 小结：12 个用例，2 个失败 =====

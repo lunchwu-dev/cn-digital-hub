@@ -1,0 +1,554 @@
+/* ==========================================================================
+   Decathlon Digital · 全局样式补充层
+   仅承载 antd token 无法表达的三件事：
+     1. 胶囊圆角签名（按钮 / 标签 / 搜索框）
+     2. 等宽数字（版本号 / ID / 指标值一律 tabular-nums）
+     3. 卡片静止 1px 边框、hover 才抬升
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   自托管字体（Roboto / Roboto Mono，Apache-2.0，可自由内嵌分发）
+   仅取 latin 子集（含全部数字与标点），中文交给系统字体回退栈。
+   「数字一律 Roboto Mono + tabular-nums」是本设计系统的核心签名，
+   若不自托管，Windows 端会静默回退到 Segoe UI，签名即失效。
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/roboto-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./assets/fonts/roboto-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Roboto Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/roboto-mono-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Roboto Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./assets/fonts/roboto-mono-latin.woff2') format('woff2');
+}
+
+:root {
+  --dp-font-mono: 'Roboto Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f5f4f5;
+  color: #000f17;
+  font-family: Roboto, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC',
+    Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 所有数字一律等宽、等宽对齐 */
+.dp-num,
+.ant-statistic-content-value,
+.ant-table-cell.dp-num,
+.dp-mono {
+  font-family: var(--dp-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.dp-mono {
+  letter-spacing: 0.01em;
+}
+
+/* —— 胶囊圆角：品牌最强形状签名 —— */
+.ant-btn,
+.ant-btn-lg,
+.ant-btn-sm {
+  border-radius: 999px;
+}
+.ant-tag {
+  border-radius: 999px;
+}
+.ant-input-affix-wrapper,
+.ant-input {
+  border-radius: 999px;
+}
+.ant-select .ant-select-selector {
+  border-radius: 999px !important;
+}
+/* 表单内的输入框保持控件圆角，避免编辑区全是胶囊 */
+.dp-form .ant-input,
+.dp-form .ant-input-affix-wrapper,
+.dp-form .ant-select .ant-select-selector,
+.dp-form .ant-input-number,
+.dp-form textarea.ant-input {
+  border-radius: 6px !important;
+}
+
+/* —— 卡片：静止仅 1px 边框 + 无阴影；hover 抬升 —— */
+.dp-card {
+  background: #ffffff;
+  border: 1px solid #e1e0df;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+.dp-card--hover:hover {
+  border-color: #c3c9f0;
+  box-shadow: 0 1px 2px rgba(0, 15, 23, 0.06), 0 1px 3px rgba(0, 15, 23, 0.1);
+}
+.ant-card {
+  border-radius: 8px;
+}
+.ant-card:not(.ant-card-bordered) {
+  border: 1px solid #e1e0df;
+}
+
+/* —— 顶栏（深墨色面积色）—— */
+.dp-topbar {
+  background: #000f17;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 60px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+/* 顶栏单行 flex：≥768 一律 nowrap。
+   为什么不能用 flex-wrap 当降级手段？wrap 的折行依据是 flex-basis（理想尺寸），
+   不是收缩后的尺寸 —— 所以「先折行、后收缩」。曾经的 768–976 折两行、980 反而不折，
+   就是 913px 的理想宽度先触发了换行。nowrap + 离散隐藏标签才能保证高度单调。
+   空间不足时按「牺牲顺序」让步，不折行（≤767 手机例外，见文末区块）。 */
+.dp-topbar-inner {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: nowrap;
+}
+.dp-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.dp-logo-sub {
+  color: #8a9099;
+  font-size: 11px;
+}
+.dp-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* 导航是路标（门户第一功能是找路）：不参与收缩，需要让步时隐藏「文字」而非缩小 */
+  flex: 0 0 auto;
+}
+.dp-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: #c7cbd1;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+  background: transparent;
+  border: none;
+}
+.dp-nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+.dp-nav-item[data-active='true'] {
+  background: #3643ba;
+  color: #ffffff;
+  font-weight: 500;
+}
+.dp-nav-item:focus-visible {
+  outline: 2px solid #ffcd4e;
+  outline-offset: 2px;
+}
+.dp-topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.dp-search-wrap {
+  display: inline-flex;
+  /* 搜索是第一顺位「可连续收缩」项：基态 220，空间不足时先连续收缩（文字随之截断），
+     媒体查询只决定「什么时候再牺牲一个标签」。 */
+  flex: 0 1 220px;
+  min-width: 0;
+}
+.dp-search-pill {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: #ffffff;
+  height: 34px;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.dp-search-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dp-search-pill .anticon {
+  color: #8a9099;
+}
+.dp-search-pill input::placeholder {
+  color: #8a9099;
+}
+.dp-search-kbd {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: #8a9099;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 16px;
+}
+/* 顶栏图标按钮（通知 / 反馈）：深色底上的 text button，可键盘聚焦 */
+.dp-icon-btn.ant-btn {
+  color: #c7cbd1;
+  font-size: 18px;
+  width: 34px;
+  height: 34px;
+}
+.dp-icon-btn.ant-btn:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+.dp-icon-btn.ant-btn:focus-visible {
+  outline: 2px solid #ffcd4e;
+  outline-offset: 2px;
+}
+.dp-notice-item {
+  padding: 8px;
+  border-radius: 8px;
+}
+.dp-notice-item:hover {
+  background: #f5f4f5;
+}
+
+/* —— 顶栏窄屏折叠 ——
+   两个坑（务必保留这段注释）：
+   1) 牺牲顺序不能反。曾经「先砍导航文字(省 308px)、保留搜索文字(值 217px)」，
+      结果主流笔记本宽度上一级导航只剩图标 —— 而导航是路标、搜索有 / 快捷键与放大镜兜底。
+      正确顺序：logo 副标题 → 搜索文字 → agent 文字 → 导航文字。
+   2) 折叠用 className + 媒体查询离散控制，不用 flex-wrap 连续降级（wrap 先折行后收缩，
+      会让「越宽越矮」的非单调高度）。断点数值须实测，且各分界留 ≥16px 余量。 */
+@media (max-width: 1271px) {
+  /* T2（1012–1271）：保住导航文字（关键），先牺牲 logo 副标题 + 搜索文字 + agent 文字。
+     分界 1271 是实测定的：T1 内容(含 gap)=1187px，容器内宽 = vw−64，取 1271 使 T1 起点
+     1272 处余量 = 1208−1187 = 21px（≥16）。 */
+  .dp-logo-sub {
+    display: none;
+  }
+  .dp-search-label {
+    display: none; /* 胶囊转图标态 */
+  }
+  .dp-agent-label {
+    display: none; /* Agent 只留图标 */
+  }
+  .dp-search-wrap {
+    flex: 0 0 auto; /* 图标态：宽度由内容决定 */
+  }
+}
+@media (max-width: 1011px) {
+  /* T3（768–1011）：导航也转图标态。
+     T2 内容(含 gap)=929px → 取 1011 使 T2 起点 1012 处余量 = 948−929 = 19px（≥16）。
+     T3 自身内容(含 gap)=621px，768 处余量充足。 */
+  .dp-nav-text {
+    display: none;
+  }
+  .dp-nav-item {
+    padding: 0 10px;
+  }
+}
+@media (max-width: 767px) {
+  /* T4：手机。≥768 要求严格单行；手机才允许换行（已知取舍：375px 顶栏多行，非汉堡抽屉） */
+  .dp-topbar-inner {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .dp-search-label {
+    display: none;
+  }
+  .dp-search-kbd {
+    display: none;
+  }
+  .dp-logo-sub {
+    display: none;
+  }
+  .dp-agent-label {
+    display: none;
+  }
+  .dp-nav-text {
+    display: none;
+  }
+  .dp-nav-item {
+    padding: 0 8px;
+  }
+}
+
+/* —— 紧凑列表行（56px，hover 底 #F5F4F5）—— */
+.dp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e1e0df;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.dp-row:hover {
+  background: #f5f4f5;
+}
+.dp-row:last-child {
+  border-bottom: none;
+}
+
+/* 表格：只保留行悬停（禁止斑马纹叠加） */
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid #e1e0df;
+}
+.dp-table-compact .ant-table-cell {
+  padding: 10px 12px !important;
+}
+
+/* —— 长文阅读排版 —— */
+.dp-article-body {
+  font-size: 16px;
+  line-height: 1.75;
+  color: #000f17;
+}
+.dp-article-body h2 {
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin: 32px 0 12px;
+  color: #000f17;
+}
+.dp-article-body h3 {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 24px 0 8px;
+  color: #000f17;
+}
+.dp-article-body p {
+  margin: 0 0 16px;
+}
+.dp-article-body ul {
+  padding-left: 22px;
+  margin: 0 0 16px;
+}
+.dp-article-body li {
+  margin-bottom: 6px;
+}
+.dp-article-body code {
+  font-family: var(--dp-font-mono);
+  font-size: 13px;
+  background: #f5f4f5;
+  border: 1px solid #e1e0df;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.dp-article-body pre {
+  font-family: var(--dp-font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  background: #000f17;
+  color: #c7cbd1;
+  border-radius: 12px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  margin: 0 0 16px;
+}
+.dp-article-body pre code {
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 0;
+}
+
+/* —— 栅格工具类（基础响应式：窄屏自动塌缩为单列）—— */
+.dp-grid {
+  display: grid;
+  gap: 16px;
+}
+.dp-g2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.dp-g3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.dp-g4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.dp-g6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.dp-g2-asym {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+}
+.dp-g-spec {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+.dp-g-article {
+  grid-template-columns: minmax(0, 1fr) 232px;
+}
+.dp-g-tools {
+  grid-template-columns: 200px minmax(0, 1fr);
+}
+@media (max-width: 1240px) {
+  .dp-g6 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .dp-g4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .dp-g2,
+  .dp-g3,
+  .dp-g4,
+  .dp-g6,
+  .dp-g2-asym,
+  .dp-g-spec,
+  .dp-g-article,
+  .dp-g-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* —— 滚动条（轻量中性）—— */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #d9dde1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #b3b7b9;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* —— 内容区最大宽度与留白节奏 —— */
+/* 单一栅格：顶栏 / 内容区 / 页脚共用 1280 + 32px 边距，避免双宽度错位 */
+.dp-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-left: 32px;
+  padding-right: 32px;
+  box-sizing: border-box;
+}
+.dp-shell {
+  max-width: 1280px;
+  /* 必须与 .dp-container 一样自居中：父级 <main> 是 block，不会替它居中，
+     否则宽视口下顶栏（.dp-container）居中、正文（.dp-shell）靠左，产生错位 */
+  margin: 0 auto;
+  padding: 24px 32px 64px;
+}
+@media (max-width: 900px) {
+  .dp-container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .dp-shell {
+    padding: 16px 16px 48px;
+  }
+}
+
+/* —— 锚点跳转偏移 —— */
+/* 顶栏 position:sticky / height:60px；锚点直接滚到顶部会被顶栏盖住标题，
+   统一留出 76px（与 aside 的 top:76 对齐）。 */
+section[id^='grp-'] {
+  scroll-margin-top: 76px;
+}
+
+/* —— 键盘焦点环 —— */
+/* .dp-nav-item 已有；这里补齐「整卡/整行可点」的卡片与列表行，
+   它们靠 role=button + tabindex 获得焦点，但没有可见焦点环。 */
+.dp-card[role='button']:focus-visible,
+.dp-row:focus-visible {
+  outline: 2px solid #3643ba;
+  outline-offset: 2px;
+}
+
+/* Agent 对话气泡 */
+.dp-bubble {
+  max-width: 88%;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  border-radius: 12px;
+}
+.dp-bubble--agent {
+  background: #f5f4f5;
+  border: 1px solid #e1e0df;
+  color: #000f17;
+  border-top-left-radius: 4px;
+}
+.dp-bubble--user {
+  background: #3643ba;
+  color: #ffffff;
+  border-top-right-radius: 4px;
+}
+
+/* Segmented / Tabs 细节 */
+.ant-tabs-top > .ant-tabs-nav::before {
+  border-bottom: 1px solid #e1e0df;
+}
+.ant-segmented {
+  border-radius: 999px;
+  padding: 2px;
+}
+.ant-segmented .ant-segmented-item {
+  border-radius: 999px;
+}
+
+/* 让 seg / tag 在密集区保持中性浅底 */
+.dp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}

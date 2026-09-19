@@ -1,0 +1,209 @@
+/**
+ * 深色顶栏（面积色 #000F17，高 60px）
+ * 一级导航横向排布 —— 本项目不设左侧边栏。
+ * 右侧只有三件事：全局搜索 / Agent 入口 / 通知（无登录、无个人中心）。
+ *
+ * 窄屏折叠：折叠状态一律由 global.css 的 @media + className 控制，**不写内联 style**
+ *（内联 style 无法被媒体查询覆盖，是此前窄屏顶栏始终不折叠的根因）。
+ */
+import React, { useState } from 'react';
+import { Badge, Button, Tooltip, Popover, Modal, Form, Input, Select, App as AntdApp } from 'antd';
+import {
+  HomeOutlined,
+  NotificationOutlined,
+  DashboardOutlined,
+  ReadOutlined,
+  AppstoreOutlined,
+  SearchOutlined,
+  MessageOutlined,
+  BellOutlined,
+  CoffeeOutlined,
+} from '@ant-design/icons';
+import { useT } from '../theme';
+import { BrandSymbol } from './ui';
+import { NAV, go } from '../router';
+
+const NAV_ICON = {
+  home: HomeOutlined,
+  news: NotificationOutlined,
+  ops: DashboardOutlined,
+  knowledge: ReadOutlined,
+  workspace: AppstoreOutlined,
+};
+
+const NOTICES = [
+  { title: '「打印机密价」制度更新待你确认', time: '2 小时前' },
+  { title: '库存服务本周第二次补货延迟', time: '今天 09:12' },
+  { title: '你的知识条目被引用 3 次', time: '昨天' },
+];
+
+export default function TopBar({ activeKey, onOpenSearch, onOpenAgent, noticeCount = 3, refs = {} }) {
+  const c = useT();
+  const { message } = AntdApp.useApp();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [form] = Form.useForm();
+
+  const cancelFeedback = () => {
+    setFeedbackOpen(false);
+    form.resetFields();
+  };
+  const submitFeedback = () => {
+    setFeedbackOpen(false);
+    form.resetFields();
+    message.success('反馈已提交，将由门户 Owner 受理');
+  };
+
+  const noticePanel = (
+    <div style={{ width: 268 }}>
+      <div style={{ fontSize: 12, color: c.text3, marginBottom: 6 }}>近 7 天 · {noticeCount} 条</div>
+      {NOTICES.map((n) => (
+        <div key={n.title} className="dp-notice-item">
+          <div style={{ color: c.ink, fontSize: 13, lineHeight: 1.5 }}>{n.title}</div>
+          <div className="dp-num" style={{ color: c.text3, fontSize: 12, marginTop: 2 }}>
+            {n.time}
+          </div>
+        </div>
+      ))}
+      <div
+        style={{
+          marginTop: 8,
+          paddingTop: 10,
+          borderTop: `1px solid ${c.border}`,
+          fontSize: 12,
+          color: c.text3,
+        }}
+      >
+        通知中心为原型示意，接入消息服务后开放。
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <header className="dp-topbar">
+        <div className="dp-container dp-topbar-inner">
+          {/* Logo：品牌几何符号仅用于页头 */}
+          <div className="dp-logo">
+            <BrandSymbol size={30} color={c.darkText1} />
+            <div style={{ lineHeight: 1.15 }}>
+              <div style={{ color: c.darkText1, fontSize: 15, fontWeight: 500, letterSpacing: '0.02em' }}>
+                DECATHLON <span style={{ color: c.darkText2, fontWeight: 400 }}>Digital</span>
+              </div>
+              <div className="dp-logo-sub">中国 · 部门门户</div>
+            </div>
+          </div>
+
+          {/* 一级导航 */}
+          <nav ref={refs.nav} className="dp-nav" aria-label="主导航">
+            {NAV.map((n) => {
+              const Icon = NAV_ICON[n.key];
+              const active = activeKey === n.key;
+              return (
+                <button
+                  key={n.key}
+                  type="button"
+                  className="dp-nav-item"
+                  data-active={active ? 'true' : 'false'}
+                  aria-current={active ? 'page' : undefined}
+                  title={n.short}
+                  onClick={() => go(n.path)}
+                >
+                  <Icon style={{ fontSize: 16 }} />
+                  <span className="dp-nav-text">{n.short}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* 右侧动作区 */}
+          <div className="dp-topbar-actions">
+            <span ref={refs.search} className="dp-search-wrap">
+              <button
+                type="button"
+                className="dp-search-pill"
+                onClick={onOpenSearch}
+                aria-label="打开全局搜索"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '0 14px',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                <SearchOutlined style={{ fontSize: 15 }} />
+                <span className="dp-search-label" style={{ color: c.darkText3, flex: 1, textAlign: 'left' }}>
+                  搜索公告 / Release / 工具 / FAQ
+                </span>
+                <span className="dp-mono dp-search-kbd">/</span>
+              </button>
+            </span>
+
+            <span ref={refs.agent} className="dp-agent-wrap">
+              <Button
+                className="dp-agent-btn"
+                onClick={onOpenAgent}
+                icon={<MessageOutlined />}
+                style={{
+                  background: c.darkHoverBg,
+                  border: `1px solid ${c.darkSearchBorder}`,
+                  color: c.darkText1,
+                  borderRadius: 999,
+                }}
+              >
+                <span className="dp-agent-label">Agent for Digital</span>
+              </Button>
+            </span>
+
+            <Popover placement="bottomRight" trigger="click" title="通知" content={noticePanel}>
+              <Badge count={noticeCount} size="small" color={c.yellow} offset={[-2, 2]}>
+                <Button type="text" className="dp-icon-btn" aria-label="通知" icon={<BellOutlined />} />
+              </Badge>
+            </Popover>
+
+            <Tooltip title="发起内部门户建设反馈">
+              <Button
+                type="text"
+                className="dp-icon-btn"
+                aria-label="发起内部门户建设反馈"
+                icon={<CoffeeOutlined />}
+                onClick={() => setFeedbackOpen(true)}
+              />
+            </Tooltip>
+          </div>
+        </div>
+      </header>
+
+      <Modal
+        title="内部门户建设反馈"
+        open={feedbackOpen}
+        onCancel={cancelFeedback}
+        onOk={() => form.submit()}
+        okText="提交反馈"
+        cancelText="取消"
+        width={480}
+      >
+        <p style={{ color: c.text3, fontSize: 13, marginTop: 0 }}>
+          提交后由门户 Owner 受理，并同步到工作台「需求提交」历史。本原型不真实发送。
+        </p>
+        <Form form={form} layout="vertical" onFinish={submitFeedback}>
+          <Form.Item name="type" label="反馈类型" rules={[{ required: true, message: '请选择反馈类型' }]}>
+            <Select
+              placeholder="请选择"
+              options={[
+                { value: 'ia', label: '信息架构 / 导航' },
+                { value: 'content', label: '内容缺失 / 更新' },
+                { value: 'ui', label: '显示或交互问题' },
+                { value: 'idea', label: '新功能建议' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="detail" label="反馈内容" rules={[{ required: true, message: '请填写反馈内容' }]}>
+            <Input.TextArea rows={4} maxLength={300} showCount placeholder="请描述你遇到的问题或建议…" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
+  );
+}

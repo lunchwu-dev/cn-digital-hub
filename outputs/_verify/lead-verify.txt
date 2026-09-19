@@ -1,0 +1,27 @@
+===== 1. 字体实际加载 =====
+{"route":"fonts","shellLeft":72,"containerLefts":[72,72],"hScroll":false,"scrollW":1424,"clientW":1424,"roboto":true,"robotoMono":true,"roboto500":true,"faces":[]}
+
+===== 2. 栅格对齐（.dp-shell vs .dp-container 左边界）=====
+[PASS] 1280px   shell=0  containers=[0,0]  hScroll=false
+[PASS] 1440px   shell=80  containers=[80,80]  hScroll=false
+[PASS] 1920px   shell=320  containers=[320,320]  hScroll=false
+
+===== 3. 404 空态是否残留 antd 内置插画 =====
+[PASS] antdIllustration=false 站外色命中=0 <img>=0 <svg>=12
+
+===== 4. 图表柱色（P95 应为单色品牌蓝 / 告警分布单色）=====
+barFills={"#3643BA":6}
+
+===== 5. 文案与对比度 =====
+免责句: undefined
+「单位 ms」全页出现次数 = 0
+「回车打开首条」文案存在 = false
+
+===== 6. 各档横向溢出 =====
+[FAIL] 375px  ["home(scrollW=1237>375)","news(scrollW=1237>375)","ops(scrollW=1237>375)","knowledge(scrollW=1237>375)","workspace(scrollW=1237>375)"]
+[FAIL] 768px  ["home(scrollW=1237>768)","news(scrollW=1237>768)","ops(scrollW=1237>768)","knowledge(scrollW=1237>768)","workspace(scrollW=1237>768)"]
+[PASS] 1440px  无横向溢出
+[PASS] 1920px  无横向溢出
+
+===== 7. 控制台错误 =====
+无（0 条）

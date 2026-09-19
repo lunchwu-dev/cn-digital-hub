@@ -1,0 +1,23 @@
+{
+  "name": "decathlon-digital-portal",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "迪卡侬中国 · Digital 部门内部门户 · 高保真可交互原型（React 18 + Ant Design 5 + Vite）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:smoke": "node tests/smoke.cjs"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.5.1",
+    "antd": "^5.22.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

@@ -1,0 +1,47 @@
+# ── 依赖 ─────────────────────────────────────────────
+node_modules/
+package-lock.json.bak
+
+# ── 构建产物 ──────────────────────────────────────────
+# 保留：portal/dist/ —— 这是可直接双击运行的交付原型，纳入版本管理
+.vite/
+*.tsbuildinfo
+
+# ── 验证过程中的临时产物 ──────────────────────────────
+# 保留：outputs/_research/*.mjs、outputs/_verify/*.mjs —— 复验脚本
+# 忽略：脚本运行时产生的一次性输出、中间解压目录、导出暂存区
+outputs/_export/
+outputs/_probe.txt
+outputs/_research/*.txt
+outputs/_research/*.raw
+outputs/_research/*.log
+outputs/_research/*.bak
+outputs/_research/zip-*/
+outputs/_research/shots-backup/
+outputs/_research/shots-*.txt
+outputs/_verify/*.json
+outputs/_verify/*.log
+outputs/_verify/*.err.txt
+
+# ── 站点部署副本（与 portal/dist/ 逐字节一致的冗余拷贝）──
+outputs/deploy-site/
+
+# ── 运行时与本地环境 ──────────────────────────────────
+*.log
+logs/
+.env
+.env.local
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── 编辑器 / IDE ──────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+
+# ── 平台内部数据与标记文件 ────────────────────────────
+.workbuddy/
+.wbapp_*.genie
+.wbapp_*

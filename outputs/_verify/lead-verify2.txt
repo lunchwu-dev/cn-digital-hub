@@ -1,0 +1,34 @@
+===== A. 字体实际加载（file:// 下自托管 woff2）=====
+{"route":"fonts","hScroll":false,"scrollW":1424,"clientW":1424,"roboto":true,"robotoMono":true,"roboto500":true,"faces":[]}
+
+===== B. 横向溢出（375/768 用 desktop 与 mobile 两种 emulation 各测一遍）=====
+[PASS] 375px mobile=false  全部路由 scrollWidth === clientWidth
+[PASS] 375px mobile=true  全部路由 scrollWidth === clientWidth
+[PASS] 768px mobile=false  全部路由 scrollWidth === clientWidth
+[PASS] 768px mobile=true  全部路由 scrollWidth === clientWidth
+[PASS] 1024px mobile=false  全部路由 scrollWidth === clientWidth
+[PASS] 1280px mobile=false  全部路由 scrollWidth === clientWidth
+[PASS] 1440px mobile=false  全部路由 scrollWidth === clientWidth
+[PASS] 1920px mobile=false  全部路由 scrollWidth === clientWidth
+
+===== C. 顶栏折叠状态 vs 断点 =====
+375px mobile=true  topbarH=141 innerH=140 searchPillW=45  navText=false searchLabel=false agentLabel=false logoSub=false  顶栏内原生tabindex元素=0 顶栏button数=9
+768px mobile=true  topbarH=61 innerH=60 searchPillW=72  navText=false searchLabel=false agentLabel=false logoSub=false  顶栏内原生tabindex元素=0 顶栏button数=9
+1024px mobile=false  topbarH=61 innerH=60 searchPillW=72  navText=true searchLabel=false agentLabel=false logoSub=false  顶栏内原生tabindex元素=0 顶栏button数=9
+1440px mobile=false  topbarH=61 innerH=60 searchPillW=220  navText=true searchLabel=true agentLabel=true logoSub=true  顶栏内原生tabindex元素=0 顶栏button数=9
+
+===== D. 页脚演示数据披露 =====
+页脚命中: 示意数据 · 非真实运行值
+
+===== E. 404 空态 =====
+[PASS] antd插画=false 站外色命中=0 <img>=0
+
+===== F. 监控页图表柱色 + 单位出现次数 =====
+barFills={"#3643BA":6}   「单位 ms」出现 1 次
+
+===== G. 咖啡杯反馈入口是否真能打开 Modal（键盘可达）=====
+触发: CLICKED
+[PASS] modal=true title="内部门户建设反馈" textarea=true select=true
+
+===== H. 控制台错误 =====
+无（0 条）

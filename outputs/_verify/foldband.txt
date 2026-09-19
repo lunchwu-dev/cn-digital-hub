@@ -1,0 +1,17 @@
+=== 顶栏形态带（desktop emulation, 360→1440 步进 4）===
+列: 宽度区间 | topbarH | navText | searchLabel | agentLabel | logoSub | 溢出
+360–396      | h=141    | navText=false    | searchLabel=false   | agentLabel=false   | logoSub=false  | OK
+400–596      | h=99     | navText=false    | searchLabel=false   | agentLabel=false   | logoSub=false  | OK
+600–1008     | h=61     | navText=false    | searchLabel=false   | agentLabel=false   | logoSub=false  | OK
+1012–1268    | h=61     | navText=true     | searchLabel=false   | agentLabel=false   | logoSub=false  | OK
+1272–1440    | h=61     | navText=true     | searchLabel=true    | agentLabel=true    | logoSub=true   | OK
+
+=== 折行带细节（tbH 变化点前后）===
+vw=360  tbH=141 innerH=140 navW=176 logoW=177 actW=189 pillW=45 scrollW=360
+vw=400  tbH=99 innerH=98 navW=176 logoW=177 actW=189 pillW=45 scrollW=400
+vw=600  tbH=61 innerH=60 navW=176 logoW=177 actW=189 pillW=45 scrollW=600
+
+全展开（navText=true）最小宽度 = 1012
+
+=== 连续溢出扫描 step=1 (375→1920) ===
+[OK] 1546 档全部 scrollWidth <= clientWidth
