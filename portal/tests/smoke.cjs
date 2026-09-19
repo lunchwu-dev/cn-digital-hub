@@ -11,7 +11,7 @@
  *   —— 反面教材：把 chip 的 label 改掉后 smoke 仍 81/81 全绿（该断言被同页 hint 文案污染）。
  *   —— 02b §F.1 #5：面板关闭后 DOM 仍常驻，剔除选择器已由 .ant-drawer 改为 .dp-agent-panel。
  *
- * 配套变异自证：node tests/mutation.cjs（把 6 个修复点各自改坏，验证对应断言确实变红）
+ * 配套变异自证：node tests/mutation.cjs（把 9 个修复点各自改坏，验证对应断言确实变红）
  *
  * 运行：
  *   set NODE_PATH=C:\Users\uuzz\.workbuddy\binaries\node\workspace\node_modules
@@ -1530,10 +1530,36 @@ async function main() {
   await navigate(win, '#/workspace/people/min.zhou');
   await settle(520);
   {
-    const peopleNeed = ['周敏', '设计系统组 · 设计系统负责人', '标签', '领域轴', '能力类型轴', '近期知识贡献', '主标签'];
+    const peopleNeed = ['周敏', '设计系统组 · 设计系统负责人', '技能标签', '协作与流程', '近期知识贡献', '主标签'];
     const pmiss = peopleNeed.filter((t) => !pageHas(doc, t));
-    if (pmiss.length === 0) ok('个人主页渲染：页头 + 标签矩阵双分区 + 右栏贡献', peopleNeed.length + ' 项命中');
+    if (pmiss.length === 0) ok('个人主页渲染：页头 + 技能标签树（单树分组）+ 右栏贡献', peopleNeed.length + ' 项命中');
     else fail('个人主页渲染', '缺失：' + pmiss.join(' / '));
+
+    /* v0.4.1 单树 · TagMatrix 只渲染「该人有标签」的分组（空组不渲染）
+       ------------------------------------------------------------------
+       周敏 min.zhou 数据事实（本轮实测 outputs/_gprobe.json）：8 个标签、分属
+       2 组（产品与设计 4 + 协作与流程 4）。故标签树 Panel 头应显示「2 组 · 共 8 个标签」。
+       若 TagMatrix 去掉 `.filter((b) => b.list.length > 0)`（空组照渲），
+       buckets 会变成全部 7 组 → 文案变「7 组 · 共 8 个标签」，且空组名（AI 与算法 等）会冒上屏。
+       这是 v0.4.1「单树 + 减法」的核心不变量，必须被钉住（对应变异 M8）。 */
+    {
+      // 定位标签树 Panel 头：标题 div 的文本恰为「技能标签」，其父的下一个 div 即 desc
+      const titleEl = Array.from(doc.querySelectorAll('.dp-card div')).find(
+        (d) => norm(d.textContent) === '技能标签' && d.children.length === 0
+      );
+      const descEl = titleEl && titleEl.parentElement ? titleEl.parentElement.querySelector('div + div') : null;
+      const desc = descEl ? norm(descEl.textContent) : '';
+      // 注：norm() 抹掉全部空白，故期望值也用「无空格」形式比对
+      if (desc === norm('2 组 · 共 8 个标签')) {
+        ok('v0.4.1 TagMatrix 只渲染有标签的分组（周敏 2 组 / 8 标签，空组不渲染）', descEl ? descEl.textContent : '');
+      } else {
+        fail('v0.4.1 TagMatrix 分组渲染口径应为「2 组 · 共 8 个标签」', `实得 desc=${JSON.stringify(descEl ? descEl.textContent : '')}`);
+      }
+      // 空组名不得出现在该人主页（空组在个人画像里是纯噪音）
+      const emptyGroupLeak = ['AI 与算法', '平台与安全'].filter((g) => pageHas(doc, g));
+      if (emptyGroupLeak.length === 0) ok('   ↳ 周敏主页无空组名泄漏（AI 与算法 / 平台与安全 均未渲染）');
+      else fail('   ↳ 周敏主页出现空组名（空组不应渲染）', emptyGroupLeak.join(' / '));
+    }
 
     // 导航高亮工作台
     const navA = doc.querySelector('.dp-nav-item[data-active="true"]');
@@ -1556,7 +1582,7 @@ async function main() {
 
     // 成熟度双轴：自评圆点 + 实证分段条（形状不同 → 不可相加）
     const dots = doc.querySelectorAll('.dp-card span[style*="border-radius: 999"]');
-    if (dots.length >= 4) ok('双轴成熟度：自评圆点阵已渲染', `${dots.length} 个圆点元素`);
+    if (dots.length >= 4) ok('成熟度双轨（自评圆点 + 实证分段条）：自评圆点阵已渲染', `${dots.length} 个圆点元素`);
     else fail('双轴成熟度：自评圆点阵已渲染', `仅 ${dots.length} 个圆点元素（应 ≥4）`);
 
   }
@@ -1604,10 +1630,14 @@ async function main() {
     const arrowTargets = new Set();
     Array.from(doc.querySelectorAll('div[role="button"], .dp-card, .dp-row')).forEach((el) => {
       const txt = norm(el.textContent);
-      // 形如 →◈设计系统 / →◇系统架构
-      const re = /→[◈◇]([^→◈◇\s]+)/g;
+      // v0.4.1 单树：active chip 不再带字形前缀，箭头形如 →设计系统。
+      // 兼容旧字形（◈/◇）以防历史残留，但主匹配是无字形形式。
+      const re = /→([◈◇]?)([^→\s]+)/g;
       let m;
-      while ((m = re.exec(txt)) !== null) arrowTargets.add(m[1]);
+      while ((m = re.exec(txt)) !== null) {
+        const label = m[2].trim();
+        if (label) arrowTargets.add(label);
+      }
     });
 
     let checked = 0;
@@ -1616,10 +1646,10 @@ async function main() {
       const txt = norm(card.textContent);
       const tier = Object.keys(TIER_TEXT).find((k) => txt.includes(TIER_TEXT[k]));
       if (!tier) return; // 该标签实证=0，不要求箭头
-      // 卡内标签名：首个 span 文本形如 ◈设计系统
+      // 卡内标签名：首个 span 文本（v0.4.1 可能为「◈ 主标签名」或纯「标签名」）
       const labelEl = card.querySelector('span');
       const labelTxt = norm(labelEl ? labelEl.textContent : '');
-      const label = labelTxt.replace(/^[◈◇]/, '');
+      const label = labelTxt.replace(/^[◈◇]\s*/, '');
       checked += 1;
       // 精确匹配：箭头必须指向**该标签本身**（规范 C.5 闭环）。
       // 不放宽为子串匹配——否则 A 标签的「→ A（旧）」会掩盖 B 的缺失，
@@ -1640,14 +1670,14 @@ async function main() {
   await navigate(win, '#/workspace/tags');
   await settle(520);
   {
-    const browseNeed = ['标签浏览', '按标签找人', '领域轴', '能力类型轴', '结果'];
+    const browseNeed = ['标签浏览', '按标签找人', 'AI 与算法', '协作与流程', '结果'];
     const bmiss = browseNeed.filter((t) => !pageHas(doc, t));
-    if (bmiss.length === 0) ok('标签反查页渲染：页头 + 筛选器 + 结果区', browseNeed.length + ' 项命中');
+    if (bmiss.length === 0) ok('标签反查页渲染：页头 + 分组筛选器 + 结果区', browseNeed.length + ' 项命中');
     else fail('标签反查页渲染', '缺失：' + bmiss.join(' / '));
 
-    // 筛选器：Segmented（轴切换）+ chip 组
-    if (doc.querySelector('.ant-segmented')) ok('反查页含 Segmented 轴切换（全部 / 领域轴 / 能力类型轴）');
-    else fail('反查页含 Segmented 轴切换');
+    // 筛选器：Segmented（v0.4.1 按 7 个分组筛选，非旧「轴」切换）+ chip 组
+    if (doc.querySelector('.ant-segmented')) ok('反查页含 Segmented 分组筛选（全部 / 7 个技能分组）');
+    else fail('反查页含 Segmented 分组筛选');
     const chips = doc.querySelectorAll('.dp-chip');
     if (chips.length >= 10) ok('反查页含词选择 chip 组（按域分组分行）', `${chips.length} 个 chip`);
     else fail('反查页含词选择 chip 组（按域分组分行）', `仅 ${chips.length} 个 .dp-chip（应 ≥10）`);
@@ -1710,7 +1740,7 @@ async function main() {
           /已停用/.test(norm(el.textContent))
         );
       });
-      if (depChip) ok('已归档区 deprecated chip 结构合规（虚线描边 + 3px 轴色竖条 + 「已停用」）');
+      if (depChip) ok('已归档区 deprecated chip 结构合规（虚线描边 + 3px 中性竖条 + 「已停用」）');
       else fail('已归档区 deprecated chip 结构', archChips.map((e) => norm(e.textContent)).join('|').slice(0, 120));
 
       /* merged chip：外层包「新词 chip + 原『旧名』角标」，角标文本必须是 原「旧名」，
@@ -1823,7 +1853,7 @@ async function main() {
        最怕的错法：分档把「吹牛」也收轨了 → 吹牛态的诚实并列被消解。
        故此处钉住 UI-accurate 数值（与 outputs/_audit-emptystate-verify3.mjs 同口径）：
          · 周敏 min.zhou：吹牛双行 = 7、提示行 = 7（改造前后**不变**）
-       口径：屏幕出现次数 = expanded(head,主标签≤3) + compact(矩阵,全部标签)，
+       口径：屏幕出现次数 = expanded(head,主标签≤2) + compact(矩阵,全部标签)，
              用「直接文本节点恰等于文案」的元素个数计。
        ================================================================== */
     {
@@ -1855,8 +1885,8 @@ async function main() {
       const shCollapse = countDirect('暂无公开贡献');
       if (shBoast === 0) ok('   ↳ 沈知微 zhiwei.shen 吹牛双行 = 0（无吹牛态）', `boast=${shBoast}`);
       else fail('   ↳ 沈知微非吹牛样本吹牛双行应 = 0', `实得 ${shBoast}`);
-      if (shCollapse === 10) ok('   ↳ 沈知微收轨淡文案屏上 = 10（噪音收敛生效）', `收轨=${shCollapse}`);
-      else fail('   ↳ 沈知微收轨淡文案应 = 10', `实得 ${shCollapse}`);
+      if (shCollapse === 9) ok('   ↳ 沈知微收轨淡文案屏上 = 9（噪音收敛生效；v0.4.1 hero 主标签由 ≤3 收窄为 ≤2，沈知微 3 个主标签少渲染 1 处 → -1）', `收轨=${shCollapse}`);
+      else fail('   ↳ 沈知微收轨淡文案应 = 9', `实得 ${shCollapse}`);
 
       // 反向：周敏收轨行 = 3（收轨与吹牛并存，二者互斥不混算）
       await navigate(win, '#/workspace/people/min.zhou');
@@ -1885,36 +1915,36 @@ async function main() {
       } else {
         const { fn } = probed;
 
-        // (1) 空组分支：d-ai（AI 与智能，全组 0 人）
+        // (1) 空组分支：d-ai（AI 与算法组，全组 0 人）
         const g = fn(['d-ai']);
         const gOk =
           g &&
           g.title === '「AI 与智能」暂时还没有人登记' &&
           typeof g.desc === 'string' &&
-          g.desc.includes('「AI 与智能」这个领域目前还没有人登记') &&
-          g.desc.includes('词表已预留该领域的 6 个标签') &&
+          g.desc.includes('「AI 与算法」这个分组目前还没有人登记') &&
+          g.desc.includes('词表已预留该分组的 7 个标签') &&
           g.desc.includes('等待第一位贡献者') &&
           g.desc.includes('部门能力盘点');
-        if (gOk) ok('v0.4 反查页空态：空组（AI 与智能）走组织诊断文案', `「…6 个标签…等待第一位贡献者…」`);
-        else fail('v0.4 反查页空态：空组分流', `title=${JSON.stringify(g && g.title)} desc=${JSON.stringify(g && g.desc).slice(0, 120)}`);
+        if (gOk) ok('v0.4.1 反查页空态：空组（AI 与算法）走组织诊断文案', `「…7 个标签…等待第一位贡献者…」`);
+        else fail('v0.4.1 反查页空态：空组分流', `title=${JSON.stringify(g && g.title)} desc=${JSON.stringify(g && g.desc).slice(0, 120)}`);
 
-        // (2) 交集空分支：非空组里的标签单点无人（d-app，业务系统域内唯一 0 人标签）
+        // (2) 交集空分支：非空组里的标签单点无人（d-app，业务与场景内唯一 0 人标签）
         const i = fn(['d-app']);
         const iOk =
           i &&
           i.title === '「迪卡侬 App」暂时还没有人登记' &&
           i.desc === '这些标签的交叉暂时没有落在同一个人身上。可以去掉一两个条件，或分别查看每个标签下的人。';
-        if (iOk) ok('v0.4 反查页空态：非空组交集空走行动指引文案', '去掉条件 / 分别查看');
-        else fail('v0.4 反查页空态：交集空分流', `title=${JSON.stringify(i && i.title)} desc=${JSON.stringify(i && i.desc).slice(0, 120)}`);
+        if (iOk) ok('v0.4.1 反查页空态：非空组交集空走行动指引文案', '去掉条件 / 分别查看');
+        else fail('v0.4.1 反查页空态：交集空分流', `title=${JSON.stringify(i && i.title)} desc=${JSON.stringify(i && i.desc).slice(0, 120)}`);
 
         // (3) 多选：一空组 + 一非空组 → 空组优先（诊断文案胜出），title 为组合式
         const multi = fn(['d-pos', 'd-ai']);
         const mOk =
           multi &&
           multi.title === '这个标签组合暂时没有匹配的人' &&
-          multi.desc.includes('「AI 与智能」这个领域目前还没有人登记');
-        if (mOk) ok('v0.4 反查页空态：多选含空组 → 空组诊断优先、title 为组合式');
-        else fail('v0.4 反查页空态：多选优先级', `title=${JSON.stringify(multi && multi.title)} desc=${JSON.stringify(multi && multi.desc).slice(0, 120)}`);
+          multi.desc.includes('「AI 与算法」这个分组目前还没有人登记');
+        if (mOk) ok('v0.4.1 反查页空态：多选含空组 → 空组诊断优先、title 为组合式');
+        else fail('v0.4.1 反查页空态：多选优先级', `title=${JSON.stringify(multi && multi.title)} desc=${JSON.stringify(multi && multi.desc).slice(0, 120)}`);
 
         // (4) 非空组合（应有人在，不会进空态；此处只验 title 分流不抛错）
         const live = fn(['d-pos']);
@@ -2021,6 +2051,23 @@ async function main() {
   const rowF = /\.dp-row:focus-visible/.test(css);
   if (cardF && rowF) ok('可点卡片/列表行有键盘焦点环（:focus-visible）');
   else fail('可点卡片/列表行有键盘焦点环', `.dp-card=${cardF} .dp-row=${rowF}`);
+
+  // ③b v0.4.1 个人主页专用栅格（非对称两栏）+ ≤900px 塌缩（不复用 .dp-g-article）
+  {
+    const profGrid = /\.dp-g-profile\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.85fr\)\s*minmax\(0,\s*1fr\)/.test(css);
+    // .dp-g-article 必须保持原定义未被污染（被 ArticleDetail 共用）
+    const artUnchanged = /\.dp-g-article\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*232px/.test(css);
+    // ≤900px 塌缩块里必须含 .dp-g-profile
+    const collapseOk = /@media \(max-width: 900px\)\{[^@]*?\.dp-g-profile/.test(css);
+    if (profGrid && artUnchanged && collapseOk) ok('v0.4.1 个人主页栅格 .dp-g-profile（1.85fr/1fr）已定义且 ≤900px 塌缩；.dp-g-article 未被污染');
+    else fail('v0.4.1 .dp-g-profile 栅格', `profileGrid=${profGrid} articleUnchanged=${artUnchanged} collapse=${collapseOk}`);
+    // 死代码清理：AXIS_GLYPH 常量定义 / TagArrow 组件不得残留（注释中的历史提及不计）
+    const uiSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'ui.jsx'), 'utf8');
+    const axDef = /(?:const|let|var)\s+AXIS_GLYPH\s*=/.test(uiSrc) || /AXIS_GLYPH\s*\[/.test(uiSrc);
+    const tagArrowDef = /export function TagArrow/.test(uiSrc);
+    if (!axDef && !tagArrowDef) ok('   ↳ AXIS_GLYPH / TagArrow 已从 ui.jsx 清除（死代码清理）');
+    else fail('   ↳ ui.jsx 仍残留 AXIS_GLYPH / TagArrow', `axDef=${axDef} tagArrowDef=${tagArrowDef}`);
+  }
 
   // ④ 图表颜色编码：单序列柱状图必须单色（品牌蓝）；分类色板只留给多序列折线。
   //    早年把 6 根柱涂成 6 色，绿=健康却指向最差的库存 305ms，与数据反着来。

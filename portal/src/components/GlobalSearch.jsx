@@ -70,7 +70,7 @@ function buildIndex() {
     idx.push({
       group: '标签',
       title: t.label,
-      desc: `${t.axis === 'domain' ? '领域轴' : '能力类型轴'} · ${t.group}`,
+      desc: `${t.group}`,
       path: '#/workspace/tags/' + t.id,
       kw: `${t.label}${t.group}${(t.aliases || []).join('')}`,
     });

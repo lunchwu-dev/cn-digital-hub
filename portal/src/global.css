@@ -419,6 +419,11 @@ body {
 .dp-g-article {
   grid-template-columns: minmax(0, 1fr) 232px;
 }
+/* v0.4.1 个人主页专用非对称栅格（不复用 .dp-g-article，避免波及 ArticleDetail）：
+   主栏（技能标签树）显著宽于辅栏（近期知识贡献），呼应「标签为主、贡献为辅」。 */
+.dp-g-profile {
+  grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+}
 .dp-g-tools {
   grid-template-columns: 200px minmax(0, 1fr);
 }
@@ -438,6 +443,7 @@ body {
   .dp-g2-asym,
   .dp-g-spec,
   .dp-g-article,
+  .dp-g-profile,
   .dp-g-tools {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -458,6 +464,9 @@ body {
 @media (max-width: 900px) {
   .dp-person-head {
     flex-wrap: wrap;
+  }
+  .dp-person-head-row {
+    flex-direction: column;
   }
   .dp-person-head-main {
     flex-direction: column;

@@ -99,6 +99,15 @@ const MEASURE = `JSON.stringify((()=>{
     promise: G('.dp-demand-promise'),
     assistant: G('.dp-demand-assistant'),
   } : null;
+  // v0.4.1 个人主页两栏栅格几何（.dp-g-profile）：量两个直接子列的 left/top/width。
+  //   规范（global.css）：grid-template-columns: minmax(0,1.85fr) minmax(0,1fr)；
+  //   ≤900px 塌缩为单列（两列 left 相同、上下列排）。这是 jsdom 无布局引擎、只能靠真实 Chrome 实测的项。
+  const profGrid = document.querySelector('.dp-g-profile');
+  const profGeom = profGrid ? {
+    cols: Array.from(profGrid.children).map((e) => { const r = e.getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top), w: Math.round(r.width) }; }),
+    gridW: Math.round(profGrid.getBoundingClientRect().width),
+    cols0: getComputedStyle(profGrid).gridTemplateColumns,
+  } : null;
   return {
     vw: window.innerWidth,
     vh: window.innerHeight,
@@ -116,6 +125,7 @@ const MEASURE = `JSON.stringify((()=>{
     floatBelowTopbar: fr && tb ? fr.top >= tb.getBoundingClientRect().bottom : null,
     shellPadBottom: shellCS ? parseFloat(shellCS.paddingBottom) : null,
     specGeom,
+    profGeom,
   };
 })())`;
 
@@ -509,6 +519,44 @@ async function main() {
     failures.push('断言1c 哨兵：#/demand/new 的任何截图都未量到 .dp-g-spec —— 页面可能没渲染（检查路由与 CLICK_BRD）');
   }
 
+  // 断言1d：★ 真实几何门 —— v0.4.1 个人主页两栏栅格（.dp-g-profile）
+  //   规范（global.css:424）：grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr)；
+  //     ≤900px 塌缩为单列。jsdom 无布局引擎 → 只有本通道能实测「主栏真的宽于辅栏 / 真的塌缩成单列」。
+  //   用 getBoundingClientRect().width 求两列实际宽比 ≈ 1.85（容差计入 24px gap 的分配与亚像素取整）。
+  //   判定：宽屏（1440）两列 left 不同 + width 比落在 [1.70, 2.05]；窄屏（768）两列 left 相同（单列堆叠）。
+  {
+    const profWide = report.find((r) => r.name === '18-person-1440');
+    const profNarrow = report.find((r) => r.name === '19-person-768');
+    const pg = (r) => (r && r.measure && typeof r.measure === 'object' ? r.measure.profGeom : null);
+
+    // (a) 宽屏：两列 left 不同、主栏宽 > 辅栏宽、宽比 ≈ 1.85
+    {
+      const g = pg(profWide);
+      if (!g || !g.cols || g.cols.length < 2) {
+        failures.push('断言1d 个人主页栅格 18-person-1440：未量到 .dp-g-profile 的两列几何');
+      } else {
+        const [a, b] = g.cols;
+        if (a.left === b.left) failures.push(`断言1d 个人主页栅格 18-person-1440：两列 left 相同（${a.left}）——宽屏应为两栏而非单列`);
+        if (!(a.w > b.w)) failures.push(`断言1d 个人主页栅格 18-person-1440：主栏宽 ${a.w} 应 > 辅栏宽 ${b.w}`);
+        const ratio = b.w ? a.w / b.w : null;
+        if (ratio == null || ratio < 1.7 || ratio > 2.05) {
+          failures.push(`断言1d 个人主页栅格 18-person-1440：主/辅列宽比 ${ratio == null ? 'n/a' : ratio.toFixed(3)} 应 ≈1.85（容差 1.70–2.05）；实测 主=${a.w}px 辅=${b.w}px，grid-template-columns=${g.cols0}`);
+        }
+      }
+    }
+    // (b) ≤900 窄屏：塌缩单列（两列 left 相同、宽度近似相等、上下列排）
+    {
+      const g = pg(profNarrow);
+      if (!g || !g.cols || g.cols.length < 2) {
+        failures.push('断言1d 个人主页栅格 19-person-768：未量到 .dp-g-profile 的两列几何');
+      } else {
+        const [a, b] = g.cols;
+        if (a.left !== b.left) failures.push(`断言1d 个人主页栅格 19-person-768：≤900px 应塌缩为单列（两列 left 相同），实测 ${a.left} vs ${b.left}`);
+        if (!(b.top > a.top)) failures.push(`断言1d 个人主页栅格 19-person-768：单列后第二列应在第一列之下，实测 a.top=${a.top} b.top=${b.top}`);
+      }
+    }
+  }
+
   // 断言2a（等值 —— 水平回归的守门员）：≥768 每一档顶栏高必须恒等于 1920 档。
   //   旧判据只禁「越宽越高」，对「高度不变的水平回归」全盲：若有人在 max-width:1300 里加 padding:4px 0，
   //   则 1280→69、1301→61，宽度增加高度下降 → 单调性通过；但 h(1280)=69 ≠ h(1920)=61 → 被这条抓住。
@@ -598,12 +646,27 @@ async function main() {
     console.log(`    ${nm} (${r.viewport})  promise[${f(g.promise)}]  assistant[${f(g.assistant)}]  form[${f(g.form)}]  side[${f(g.side)}]`);
   }
 
+  /* v0.4.1 个人主页两栏栅格几何实测值（人读）——证明「1.85:1 + ≤900 单列」是量出来的 */
+  console.log('\n  v0.4.1 个人主页 .dp-g-profile 两栏几何实测（getBoundingClientRect）：');
+  for (const nm of ['18-person-1440', '19-person-768']) {
+    const r = report.find((x) => x.name === nm);
+    const g = r && r.measure ? r.measure.profGeom : null;
+    if (!g) {
+      console.log(`    ${nm}：未量到 profGeom`);
+      continue;
+    }
+    const c0 = g.cols[0] || {};
+    const c1 = g.cols[1] || {};
+    const ratio = c1.w ? (c0.w / c1.w).toFixed(3) : 'n/a';
+    console.log(`    ${nm} (${r.viewport})  主列[w=${c0.w} left=${c0.left}]  辅列[w=${c1.w} left=${c1.left}]  宽比=${ratio}  grid-template-columns=${g.cols0}`);
+  }
+
   if (failures.length) {
     console.error('\n[FAIL]');
     failures.forEach((f) => console.error('  - ' + f));
     process.exitCode = 1;
   } else {
-    console.log(`\n[OK] 断言1–4 全部通过（含 #/demand/new 表单顺序真实几何门 900/1280/375；无空数据 / 无溢出 / 顶栏高恒等且单调 / 内容不超宽 / navText 上区间且 ≥${T_B2} 可见）`);
+    console.log(`\n[OK] 断言1–4 全部通过（含 #/demand/new 表单顺序真实几何门 900/1280/375；v0.4.1 个人主页 .dp-g-profile 两栏宽比≈1.85 + ≤900 单列真实几何门 1440/768；无空数据 / 无溢出 / 顶栏高恒等且单调 / 内容不超宽 / navText 上区间且 ≥${T_B2} 可见）`);
   }
 }
 

@@ -6,6 +6,7 @@ import React from 'react';
 import { Flex } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { useT, SEMANTIC } from '../theme';
+import { SKILL_GROUPS } from '../data/mock';
 
 /** 语义 / 中性 胶囊徽标 */
 export function Pill({ semantic = 'neutral', children, style, dot = false }) {
@@ -336,8 +337,13 @@ const EVIDENCE_COPY = {
 };
 const EVIDENCE_ORDER = ['none', 'emerging', 'established', 'authoritative'];
 
-/** 轴前缀几何符（形状级冗余，供色盲用户区分两轴） */
-const AXIS_GLYPH = { domain: '◈', capability: '◇' };
+/**
+ * 主标签几何符（PRIMARY_GLYPH）—— v0.4.1 单树化后的唯一字形。
+ * 语义：标记「这个人主动表达过态度的主标签」（primary / selected 分支）。
+ * 原 AXIS_GLYPH（domain ◈ / capability ◇）已删除——单树后不存在「轴」，
+ * active 默认态不带任何前缀，字形只在 primary / selected 出现。
+ */
+const PRIMARY_GLYPH = '◈';
 
 /**
  * MaturityAxis —— 双轴成熟度条（本体系最关键的组件）
@@ -583,17 +589,20 @@ export function MaturityAxis({
 }
 
 /**
- * TagChip —— 标签胶囊（带轴语义）
- * 不复用 Pill：Pill 的 semantic 绑定「运行状态」语义域，硬塞 axis 会耦合两套语义系统。
- * 复用既有 .dp-chip 类与 ChannelTag 的中性画法（能力轴）。
+ * TagChip —— 标签胶囊（v0.4.1 单树：无轴语义）
+ * 不复用 Pill：Pill 的 semantic 绑定「运行状态」语义域，硬塞语义会耦合两套语义系统。
+ * 复用既有 .dp-chip 类与 ChannelTag 的中性画法。
  *
- * props: label / axis('domain'|'capability') / primary / status('active'|'deprecated'|'merged')
+ * props: label / primary / status('active'|'deprecated'|'merged')
  *        originLabel（merged 用，显示「原『旧名』」）/ selected / disabled / onClick
+ *        axis（**已降级为可选遗留 prop**：传与不传渲染完全一致，不参与任何视觉计算）
  *        单行裁剪由调用方在容器上控制（TagMatrix 内卡片强制单行）
+ *
+ * 配色纪律（取代原「轴色差」）：默认态统一中性（c.page/c.border/c.text2/400），
+ * 品牌蓝只出现在「用户主动表达态度」的场景 —— primary（主标签）、selected（已选）、hover。
  */
 export function TagChip({
   label,
-  axis = 'domain',
   primary = false,
   status = 'active',
   originLabel,
@@ -603,14 +612,6 @@ export function TagChip({
   style,
 }) {
   const c = useT();
-  const isDomain = axis === 'domain';
-
-  // 轴色：领域 = 品牌蓝系（检索主轴）；能力 = 中性灰系（跨领域的可迁移做法，退后一档）
-  const axisBg = isDomain ? c.brandSubtle : c.page;
-  const axisBorder = isDomain ? c.brandBorder : c.border;
-  const axisColor = isDomain ? c.brand : c.text2;
-  const axisWeight = isDomain ? 500 : 400;
-  const glyph = AXIS_GLYPH[axis];
 
   const clickable = typeof onClick === 'function' && !disabled;
 
@@ -644,7 +645,7 @@ export function TagChip({
   if (status === 'merged') {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
-        <TagChip label={label} axis={axis} primary={primary} selected={selected} disabled={disabled} onClick={onClick} />
+        <TagChip label={label} primary={primary} selected={selected} disabled={disabled} onClick={onClick} />
         {originLabel ? (
           <span
             style={{
@@ -668,7 +669,7 @@ export function TagChip({
     );
   }
 
-  // —— 已停用：虚线描边 + 去前缀 + 后缀「已停用」+ 左端 3px 轴色竖条 ——
+  // —— 已停用：虚线描边 + 无前缀 + 后缀「已停用」+ 左端 3px 中性竖条 ——
   if (status === 'deprecated') {
     return (
       <span
@@ -684,7 +685,7 @@ export function TagChip({
           paddingLeft: 7,
           background: c.page,
           border: `1px dashed ${c.dashedBorder}`,
-          borderLeft: `3px solid ${axisColor}`,
+          borderLeft: `3px solid ${c.dashedBorder}`,
           color: c.text3,
           fontWeight: 400,
           overflow: 'hidden',
@@ -726,12 +727,12 @@ export function TagChip({
           overflow: 'hidden',
         }}
       >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{glyph} {label}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       </span>
     );
   }
 
-  // —— 主标签：轴底色不变 + 1.5px brand 描边 + 前缀实心化 + 24px 高 + 右侧「主」字标 ——
+  // —— 主标签：brandSubtle 底 + 1.5px brand 描边 + 统一 ◈ 前缀 + 24px 高 + 右侧「主」字标 ——
   //    不用品牌黄（黄是「时间性标记」语义，主标签是「长期属性」），不反白填充。
   if (primary) {
     return (
@@ -745,23 +746,23 @@ export function TagChip({
           ...base,
           height: 24,
           padding: '0 12px',
-          background: axisBg,
+          background: c.brandSubtle,
           border: `1.5px solid ${c.brand}`,
-          color: axisColor,
+          color: c.brand,
           fontWeight: 500,
           cursor: clickable ? 'pointer' : 'default',
           overflow: 'hidden',
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {isDomain ? '◆' : '◈'} {label}
+          {PRIMARY_GLYPH} {label}
         </span>
         <span style={{ marginLeft: 4, fontSize: 9, fontWeight: 500, color: c.brand, flex: '0 0 auto' }}>主</span>
       </span>
     );
   }
 
-  // —— 已选：底色加深（领域 → brandStep1）+ inset 轴色环 + 前缀实心化 + 后端 × 移除符 ——
+  // —— 已选：brandStep1 底 + brandBorder 边 + inset brand 环 + 统一 ◈ 前缀 + 后端 × 移除符 ——
   if (selected) {
     return (
       <span
@@ -774,24 +775,24 @@ export function TagChip({
           ...base,
           height: 22,
           padding: '0 10px',
-          background: isDomain ? c.brandStep1 : c.page,
-          border: `1px solid ${axisBorder}`,
-          boxShadow: `inset 0 0 0 1.5px ${axisColor}`,
-          color: axisColor,
-          fontWeight: axisWeight,
+          background: c.brandStep1,
+          border: `1px solid ${c.brandBorder}`,
+          boxShadow: `inset 0 0 0 1.5px ${c.brand}`,
+          color: c.brand,
+          fontWeight: 500,
           cursor: 'pointer',
           overflow: 'hidden',
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {isDomain ? '◆' : '◈'} {label}
+          {PRIMARY_GLYPH} {label}
         </span>
         <span style={{ marginLeft: 2, fontSize: 12, color: c.text3, flex: '0 0 auto' }}>×</span>
       </span>
     );
   }
 
-  // —— active（默认）——
+  // —— active（默认）：统一中性底，无字形前缀 ——
   return (
     <span
       role={clickable ? 'button' : undefined}
@@ -803,25 +804,24 @@ export function TagChip({
         ...base,
         height: 22,
         padding: '0 10px',
-        background: axisBg,
-        border: `1px solid ${axisBorder}`,
-        color: axisColor,
-        fontWeight: axisWeight,
+        background: c.page,
+        border: `1px solid ${c.border}`,
+        color: c.text2,
+        fontWeight: 400,
         cursor: clickable ? 'pointer' : 'default',
         overflow: 'hidden',
       }}
     >
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {glyph} {label}
-      </span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </span>
   );
 }
 
 /**
- * TagMatrix —— 标签矩阵容器
- * 单 Panel 内分两区（领域轴在上、能力轴在下），不拆两块 Panel：
- * 两轴是「一个人的两个属性维度」，必须并排看；拆开会被读成「两份独立资料」。
+ * TagMatrix —— 技能标签树容器（v0.4.1 单树）
+ * 单 Panel 内按 SKILL_GROUPS 的 7 个一级分组渲染多段树；**只渲染该人有标签的分组**
+ * （空组不渲染——个人画像是「展示这个人的能力」，空组只制造噪音）。
+ * 组间按 SKILL_GROUPS 顺序；组内按 evidenceTier 降序，同档按 selfRating 降序。
  *
  * props: tags[{ tag, selfRating, evidenceTier, recentCount, historicalCount }]
  *        empty（bool，整人无标签）/ onTagClick(tagId)
@@ -829,24 +829,37 @@ export function TagChip({
 export function TagMatrix({ tags = [], empty = false, onTagClick }) {
   const c = useT();
 
-  // 整人无标签 → 整体替换为 PageEmpty（两个分区都不渲染）
+  // 整人无标签 → 整体替换为 PageEmpty（不渲染任何分组）
   if (empty || tags.length === 0) {
     return (
       <Panel>
         <PageEmpty
           compact
           title="暂无标签"
-          desc="该成员尚未选择任何标签。标签用于让同事找到你的领域与能力——可在组织速查里发起补充。"
+          desc="该成员尚未选择任何标签。标签用于让同事找到你的专长——可在组织速查里发起补充。"
         />
       </Panel>
     );
   }
 
-  const domain = tags.filter((t) => t.tag && t.tag.axis === 'domain');
-  const capability = tags.filter((t) => t.tag && t.tag.axis === 'capability');
   const recentTotal = tags.reduce((s, t) => s + (t.recentCount || 0), 0);
 
-  // 分区标题条：高 32px / cardHeadBg 底 / 6px 圆角 / 13px 500 text2 / 左 padding 10px / 右侧同轴数量
+  // 按分组归并（只保留有标签的组，按 SKILL_GROUPS 顺序）
+  const tierRank = (tier) => ({ none: 0, emerging: 1, established: 2, authoritative: 3 }[tier] || 0);
+  const ratingRank = (r) => ['curious', 'following', 'practicing', 'advocating'].indexOf(r);
+  const buckets = SKILL_GROUPS.map((g) => ({
+    label: g,
+    list: tags
+      .filter((t) => t.tag && t.tag.group === g)
+      .slice()
+      .sort((a, b) => {
+        const td = tierRank(b.evidenceTier) - tierRank(a.evidenceTier);
+        if (td !== 0) return td;
+        return ratingRank(b.selfRating) - ratingRank(a.selfRating);
+      }),
+  })).filter((b) => b.list.length > 0);
+
+  // 分组标题条：高 32px / cardHeadBg 底 / 6px 圆角 / 13px 500 text2 / 左 padding 10px / 右侧该组数量
   const groupBar = (label, n, key) => (
     <div
       key={key}
@@ -871,12 +884,12 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
     </div>
   );
 
-  // 单张标签卡：标签名（单行裁剪）+ MaturityAxis 紧凑态
+  // 单张标签卡：标签名（+主标签 ◈ 前缀）+ 分组名（替代旧「领域/能力」角标）+ MaturityAxis 紧凑态
   const tagCard = (t) => {
     const clickable = typeof onTagClick === 'function';
     const tClick = clickable ? () => onTagClick(t.tag.id) : undefined;
     // 已停用 / 已合并的历史标签挂在某人身上时，**照常渲染**（不静默丢弃），
-    // 并带对应 status 视觉（虚线 / 「原『旧名』」角标）——规范 C.4：历史引用可审计。
+    // 并带对应 status 视觉（虚线 / 「原『旧名』」角标）——历史引用可审计。
     const st = t.tag.status;
     const isLegacy = st === 'deprecated' || st === 'merged';
     return (
@@ -901,28 +914,29 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
           minWidth: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-          {isLegacy ? (
-            <TagChip label={t.tag.label} axis={t.tag.axis} status={st} originLabel={t.tag.originLabel} style={{ maxWidth: '100%' }} />
-          ) : (
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: c.ink,
-                lineHeight: 1.4,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                minWidth: 0,
-              }}
-            >
-              {AXIS_GLYPH[t.tag.axis]} {t.tag.label}
-            </span>
-          )}
-          <span style={{ fontSize: 11, color: c.text3, flex: '0 0 auto' }}>
-            {t.tag.axis === 'domain' ? '领域' : '能力'}
+        {isLegacy ? (
+          <TagChip label={t.tag.label} status={st} originLabel={t.tag.originLabel} style={{ maxWidth: '100%' }} />
+        ) : (
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: c.ink,
+              lineHeight: 1.4,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minWidth: 0,
+            }}
+          >
+            {t.primary ? `${PRIMARY_GLYPH} ` : ''}
+            {t.tag.label}
           </span>
+        )}
+        {/* 分组名独立一行（11px / text3）——替代旧「领域 / 能力」角标。
+            「业务与场景」「协作与流程」等 5 字组名与标签名同行会挤，故固定独立成行。 */}
+        <div style={{ fontSize: 11, color: c.text3, lineHeight: 1.5, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {t.tag.group}
         </div>
         <div style={{ marginTop: 4 }}>
           <MaturityAxis
@@ -936,29 +950,11 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
     );
   };
 
-  // 某轴无标签时分区不消失：标题条仍在，下方一行 12px text3 空态文案
-  const axisBlock = (key, label, list) => (
-    <div>
-      {groupBar(label, list.length, key)}
-      <div style={{ marginTop: 10 }}>
-        {list.length === 0 ? (
-          <div style={{ fontSize: 12, color: c.text3, padding: '2px 2px' }}>
-            {key === 'domain' ? '暂无领域标签' : '暂无能力标签'}
-          </div>
-        ) : (
-          <div className="dp-grid dp-g3 dp-grid--tight" style={{ alignItems: 'start' }}>
-            {list.map(tagCard)}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
   return (
     <Panel>
       <PanelHead
-        title="标签"
-        desc={`领域标签 ${domain.length} · 能力标签 ${capability.length}`}
+        title="技能标签"
+        desc={`${buckets.length} 组 · 共 ${tags.length} 个标签`}
         extra={
           <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
             近 12 月实证 {recentTotal} 条
@@ -966,21 +962,18 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
         }
       />
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {axisBlock('domain', '领域轴', domain)}
-        {axisBlock('capability', '能力类型轴', capability)}
+        {buckets.map((b) => (
+          <div key={b.label}>
+            {groupBar(b.label, b.list.length, b.label)}
+            <div style={{ marginTop: 10 }}>
+              <div className="dp-grid dp-g3 dp-grid--tight" style={{ alignItems: 'start' }}>
+                {b.list.map(tagCard)}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </Panel>
-  );
-}
-
-/** 「→ 标签名」联动标注（贡献列表用，规格见 P2 文档 C.5）——整块不可点 */
-export function TagArrow({ label }) {
-  const c = useT();
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      <span style={{ fontSize: 12, color: c.text3 }}>→</span>
-      <TagChip label={label} axis="domain" />
-    </span>
   );
 }
 

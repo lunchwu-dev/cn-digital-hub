@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T15:54:17.528Z",
+  "generatedAt": "2026-09-19T18:58:30.502Z",
   "shots": [
     {
       "name": "01-home-1440",
@@ -31,7 +31,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 370906
     },
@@ -65,7 +66,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 389908
     },
@@ -99,7 +101,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 286691
     },
@@ -133,7 +136,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 92726
     },
@@ -167,7 +171,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 148376
     },
@@ -201,7 +206,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 174456
     },
@@ -235,7 +241,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 166927
     },
@@ -269,7 +276,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 187116
     },
@@ -303,7 +311,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 402567
     },
@@ -337,9 +346,10 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
-      "bytes": 378287
+      "bytes": 377657
     },
     {
       "name": "11-news-release-1440",
@@ -371,7 +381,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 167471
     },
@@ -405,7 +416,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 404544
     },
@@ -439,7 +451,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 281393
     },
@@ -473,7 +486,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 349700
     },
@@ -507,7 +521,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 332952
     },
@@ -541,7 +556,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 218470
     },
@@ -575,7 +591,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 258049
     },
@@ -609,9 +626,25 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": {
+          "cols": [
+            {
+              "left": 112,
+              "top": 567,
+              "w": 774
+            },
+            {
+              "left": 910,
+              "top": 567,
+              "w": 418
+            }
+          ],
+          "gridW": 1216,
+          "cols0": "773.75px 418.25px"
+        }
       },
-      "bytes": 210473
+      "bytes": 204699
     },
     {
       "name": "19-person-768",
@@ -643,9 +676,25 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": {
+          "cols": [
+            {
+              "left": 16,
+              "top": 907,
+              "w": 736
+            },
+            {
+              "left": 16,
+              "top": 2288,
+              "w": 736
+            }
+          ],
+          "gridW": 736,
+          "cols0": "736px"
+        }
       },
-      "bytes": 211028
+      "bytes": 217836
     },
     {
       "name": "20-tags-1440",
@@ -677,9 +726,10 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
-      "bytes": 201229
+      "bytes": 189571
     },
     {
       "name": "21-tags-375",
@@ -711,9 +761,10 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
-      "bytes": 162017
+      "bytes": 147289
     },
     {
       "name": "22-demand-1440",
@@ -745,7 +796,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 197268
     },
@@ -779,7 +831,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 167105
     },
@@ -831,7 +884,8 @@
             "w": 868,
             "h": 268
           }
-        }
+        },
+        "profGeom": null
       },
       "bytes": 264960
     },
@@ -883,7 +937,8 @@
             "w": 480,
             "h": 343
           }
-        }
+        },
+        "profGeom": null
       },
       "bytes": 276124
     },
@@ -935,7 +990,8 @@
             "w": 343,
             "h": 407
           }
-        }
+        },
+        "profGeom": null
       },
       "bytes": 218811
     },
@@ -969,7 +1025,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 96,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 183393
     },
@@ -1003,7 +1060,8 @@
         "floatInViewport": true,
         "floatBelowTopbar": true,
         "shellPadBottom": 88,
-        "specGeom": null
+        "specGeom": null,
+        "profGeom": null
       },
       "bytes": 155141
     }

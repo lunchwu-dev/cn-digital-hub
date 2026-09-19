@@ -4,16 +4,16 @@
  * 职责是「按标签找人」，不是「判断人」（P2 文档 E.2 裁决）：
  *   · 结果列表**不显示成熟度** —— 成熟度是判断人，两步分开更清爽；
  *   · 结果**按姓名排序**，绝不做任何基于实证度的排序（禁止跨人比较）。
- * 筛选器形态（E.2）：Segmented（轴切换）+ 自建 chip 组（按域分组分行，横向卡片内，
- * **不是左侧栏** —— README 铁律「两层结构、无侧边栏」）+ 已选条（无选择时不占位）。
+ * 筛选器形态（v0.4.1 单树化）：Segmented（**按 7 个分组筛选**，非旧「轴」切换）
+ *   + 自建 chip 组（按分组分行，横向卡片内，**不是左侧栏** —— README 铁律「两层结构、无侧边栏」）
+ *   + 已选条（无选择时不占位）。
  */
 import React, { useMemo, useState } from 'react';
 import { Segmented, Button } from 'antd';
 import {
   TAG_DICT,
   TAG_BY_ID,
-  DOMAIN_GROUPS,
-  CAP_GROUPS,
+  SKILL_GROUPS,
   personTags,
   personId,
   orgPeople,
@@ -35,8 +35,8 @@ const PEOPLE_BY_TAG = (() => {
   return map;
 })();
 
-/** 标签 id → 所属分组名（domain 取 DOMAIN_GROUPS、capability 取 CAP_GROUPS 的 group 字段）。
- *  v0.4 2.1：用于判定「所选标签是否落在全员为 0 的空组」。 */
+/** 标签 id → 所属分组名（单树：直接取词表的 group 字段，7 组之一）。
+ *  v0.4.1：用于判定「所选标签是否落在全员为 0 的空组」。 */
 const GROUP_OF = (() => {
   const m = {};
   TAG_DICT.forEach((t) => { m[t.id] = t.group; });
@@ -55,27 +55,26 @@ const ARCHIVED_TAGS = TAG_DICT.filter((t) => t.status === 'deprecated' || t.stat
     return {
       id: t.id,
       status: 'merged',
-      axis: t.axis,
       // merged：新词取 target 的 label，旧名作为「原『旧名』」角标
       label: (target && target.label) || t.label,
       originLabel: t.label,
       note: target ? `已并入「${target.label}」` : '已并入其他标签',
     };
   }
-  return { id: t.id, status: 'deprecated', axis: t.axis, label: t.label, originLabel: null, note: '已停用，历史引用仍可见' };
+  return { id: t.id, status: 'deprecated', label: t.label, originLabel: null, note: '已停用，历史引用仍可见' };
 });
 
 /**
- * 反查页结果空态文案（v0.4 2.1）—— 抽成纯函数便于单测。
+ * 反查页结果空态文案（v0.4.1 单树化）—— 抽成纯函数便于单测。
  *
- * 分流口径（审查官 §2.1）：
- *   · 「空组」= 所选标签**所在分组**（DOMAIN_GROUPS / CAP_GROUPS）全员为 0：
+ * 分流口径：
+ *   · 「空组」= 所选标签**所在分组**（SKILL_GROUPS 7 组之一）全员为 0：
  *     用 `GROUP_OF` 找到每个所选标签的分组名，若该组下**全部** active 标签都无人（PEOPLE_BY_TAG 空），
  *     则给出「词表先行、等待第一位贡献者」的组织诊断文案；
  *   · 否则（多选交集为空）= 给「去掉条件 / 分别查看」的行动指引。
  *
  * title 亦分流：单标签 → 具名；多标签 → 组合。
- * 文案纪律：无过期路径、无红黄绿、给下一步或诊断信息。
+ * 文案纪律：无过期路径、无红黄绿、不用「领域」等遗留词汇、给下一步或诊断信息。
  */
 function isEmptyGroup(tid) {
   const g = GROUP_OF[tid];
@@ -94,14 +93,14 @@ export function emptyCopy(selected) {
 
   const title = single ? `「${labelOf(ids[0])}」暂时还没有人登记` : '这个标签组合暂时没有匹配的人';
 
-  // 空组优先：只要所选标签里有一个落在「全员为 0」的分组，就走领域诊断文案
+  // 空组优先：只要所选标签里有一个落在「全员为 0」的分组，就走分组诊断文案
   const emptyGroupId = ids.find((tid) => isEmptyGroup(tid));
   if (emptyGroupId) {
     const g = GROUP_OF[emptyGroupId];
     const memberCount = TAG_DICT.filter((t) => t.status === 'active' && GROUP_OF[t.id] === g).length;
     return {
       title,
-      desc: `「${g}」这个领域目前还没有人登记。词表已预留该领域的 ${memberCount} 个标签，等待第一位贡献者——这类空档本身也是部门能力盘点的一个信号。`,
+      desc: `「${g}」这个分组目前还没有人登记。词表已预留该分组的 ${memberCount} 个标签，等待第一位贡献者——这类空档本身也是部门能力盘点的一个信号。`,
     };
   }
 
@@ -113,7 +112,8 @@ export function emptyCopy(selected) {
 
 export default function TagBrowse({ id }) {
   const c = useT();
-  const [axisFilter, setAxisFilter] = useState('all'); // all | domain | capability
+  // v0.4.1：筛选维度从「轴」升级为「7 个一级分组」——'all' | 某个分组名
+  const [groupFilter, setGroupFilter] = useState('all');
   const [selected, setSelected] = useState(() => (id && TAG_BY_ID[id] ? [id] : []));
   const [archivedOpen, setArchivedOpen] = useState(false);
 
@@ -121,23 +121,16 @@ export default function TagBrowse({ id }) {
     setSelected((cur) => (cur.includes(tid) ? cur.filter((x) => x !== tid) : [...cur, tid]));
   };
 
-  // 词表按轴过滤后，再按域分组（用于渲染 chip 组分行）
+  // 词表按分组过滤后，再按分组分行（用于渲染 chip 组分行）
   const groupList = useMemo(() => {
     const groups = [];
-    if (axisFilter !== 'capability') {
-      DOMAIN_GROUPS.forEach((g) => {
-        const items = TAG_DICT.filter((t) => t.axis === 'domain' && t.group === g && t.status !== 'deprecated' && t.status !== 'merged');
-        if (items.length) groups.push({ key: 'dg-' + g, label: g, items, axis: 'domain' });
-      });
-    }
-    if (axisFilter !== 'domain') {
-      CAP_GROUPS.forEach((g) => {
-        const items = TAG_DICT.filter((t) => t.axis === 'capability' && t.group === g && t.status === 'active');
-        if (items.length) groups.push({ key: 'cg-' + g, label: g, items, axis: 'capability' });
-      });
-    }
+    SKILL_GROUPS.forEach((g) => {
+      if (groupFilter !== 'all' && groupFilter !== g) return;
+      const items = TAG_DICT.filter((t) => t.group === g && t.status === 'active');
+      if (items.length) groups.push({ key: 'g-' + g, label: g, items });
+    });
     return groups;
-  }, [axisFilter]);
+  }, [groupFilter]);
 
   // 结果：选中标签的并集（任一命中），按姓名排序；无选择时展示空态
   const results = useMemo(() => {
@@ -163,16 +156,15 @@ export default function TagBrowse({ id }) {
       <Panel style={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
           <Segmented
-            value={axisFilter}
-            onChange={setAxisFilter}
+            value={groupFilter}
+            onChange={setGroupFilter}
             options={[
               { value: 'all', label: '全部' },
-              { value: 'domain', label: '领域轴' },
-              { value: 'capability', label: '能力类型轴' },
+              ...SKILL_GROUPS.map((g) => ({ value: g, label: g })),
             ]}
           />
           <span style={{ fontSize: 12, color: c.text3 }}>
-            选一个或多个标签，结果会显示同时相关的人
+            按技能分组筛选，或直接选一个或多个标签，结果会显示同时相关的人
           </span>
         </div>
 
@@ -192,7 +184,6 @@ export default function TagBrowse({ id }) {
                   <TagChip
                     key={t.id}
                     label={t.label}
-                    axis={t.axis}
                     selected={selected.includes(t.id)}
                     onClick={() => toggleTag(t.id)}
                   />
@@ -223,7 +214,6 @@ export default function TagBrowse({ id }) {
                 <TagChip
                   key={tid}
                   label={t.label}
-                  axis={t.axis}
                   selected
                   onClick={() => toggleTag(tid)}
                 />
@@ -293,7 +283,7 @@ export default function TagBrowse({ id }) {
                       {shown.map((tid) => {
                         const t = TAG_BY_ID[tid];
                         if (!t) return null;
-                        return <TagChip key={tid} label={t.label} axis={t.axis} />;
+                        return <TagChip key={tid} label={t.label} />;
                       })}
                       {extra > 0 ? (
                         <span className="dp-num" style={{ fontSize: 12, color: c.text3, alignSelf: 'center' }}>
@@ -351,7 +341,7 @@ export default function TagBrowse({ id }) {
                 className="dp-archived-item"
                 style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
               >
-                <TagChip label={a.label} axis={a.axis} status={a.status} originLabel={a.originLabel} />
+                <TagChip label={a.label} status={a.status} originLabel={a.originLabel} />
                 <span style={{ fontSize: 12, color: c.text3 }}>{a.note}</span>
               </div>
             ))}

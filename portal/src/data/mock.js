@@ -792,134 +792,150 @@ export const articles = {
 
 /* ======================================================================
    统一 Digital 标签体系（词表 / 人×标签 / 实证度解算）
-   规范来源：outputs/p1-requirements.md B/C/D/E 节。
-   模型：2 条正交轴 —— 领域轴（业务/技术对象）× 能力类型轴（可迁移做法）。
-   互斥闸门 R3：同一个词字符串只能存在于一条轴（靠唯一 id 保证）。
+   规范来源：outputs/v041-requirements.md + outputs/v041-design-tokens.md。
+   模型（v0.4.1 单树）：一棵技能标签树 —— 一级分组（7 组）× 成熟度（双轨）。
+   不再有正交的「轴」概念：`axis` 字段已从词表彻底删除。
+   唯一性铁律：同一个标签 id 只在树中出现一次（一个 group）。
    ====================================================================== */
 
 /**
  * TAG_DICT —— 受限词表（管理员维护）。
- * 每条：{ id, label, axis, group, status, aliases[], mergedInto }
- *   axis   ∈ 'domain' | 'capability'
+ * 每条：{ id, label, group, status, aliases[], mergedInto }
+ *   group  ∈ SKILL_GROUPS 的 7 个分组名之一（逐字一致）
  *   status ∈ 'active' | 'deprecated' | 'merged'（三态，不得扩展）
- *   aliases 用于把既有 mock 的 category / tags 映射到领域标签。
+ *   aliases 用于把既有 mock 的 category / tags 映射到标签。
+ *
+ * 7 个一级分组（顺序即渲染顺序，不可改）：
+ *   1 AI 与算法 · 2 工程与架构 · 3 数据与分析 · 4 产品与设计
+ *   5 业务与场景 · 6 平台与安全 · 7 协作与流程
  */
 export const TAG_DICT = [
-  /* —— 领域轴 · AI 与智能 —— */
-  { id: 'd-ai', label: 'AI 与智能', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: ['人工智能', 'AI'] },
-  { id: 'd-rag', label: 'RAG', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: [] },
-  { id: 'd-agent', label: 'Agent', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: ['智能体'] },
-  { id: 'd-vector', label: '向量检索', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: [] },
-  { id: 'd-prompt', label: '提示词工程', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: [] },
-  { id: 'd-llm-eval', label: '模型评测', axis: 'domain', group: 'AI 与智能', status: 'active', aliases: [] },
+  /* —— 分组 1 · AI 与算法 —— */
+  { id: 'd-ai', label: 'AI 与智能', group: 'AI 与算法', status: 'active', aliases: ['人工智能', 'AI'] },
+  { id: 'd-rag', label: 'RAG', group: 'AI 与算法', status: 'active', aliases: [] },
+  { id: 'd-agent', label: 'Agent', group: 'AI 与算法', status: 'active', aliases: ['智能体'] },
+  { id: 'd-vector', label: '向量检索', group: 'AI 与算法', status: 'active', aliases: [] },
+  { id: 'd-prompt', label: '提示词工程', group: 'AI 与算法', status: 'active', aliases: [] },
+  { id: 'd-llm-eval', label: '模型评测', group: 'AI 与算法', status: 'active', aliases: [] },
+  { id: 'c-ml', label: '算法与建模', group: 'AI 与算法', status: 'active', aliases: ['算法'] },
 
-  /* —— 领域轴 · 业务系统域 —— */
-  { id: 'd-pos', label: '门店 POS', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['POS'] },
-  { id: 'd-selfcheckout', label: '自助结账', axis: 'domain', group: '业务系统域', status: 'active', aliases: [] },
-  { id: 'd-esl', label: '电子价签', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['价签'] },
-  { id: 'd-replenish', label: '智能补货', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['补货'] },
-  { id: 'd-member', label: '会员增长', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['会员'] },
-  { id: 'd-points', label: '会员积分', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['积分'] },
-  { id: 'd-miniapp', label: '会员小程序', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['小程序'] },
-  { id: 'd-ecommerce', label: '线上商城', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['电商', '电商平台'] },
-  { id: 'd-promo', label: '促销与优惠', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['促销', '交易'] },
-  { id: 'd-supply', label: '供应链数字化', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['供应链', '库存'] },
-  { id: 'd-store', label: '门店数字化', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['门店'] },
-  { id: 'd-app', label: '迪卡侬 App', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['App'] },
-  { id: 'd-crm', label: '会员与 CRM', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['CRM'] },
-  { id: 'd-order', label: '订单与履约', axis: 'domain', group: '业务系统域', status: 'active', aliases: ['订单'] },
-
-  /* —— 领域轴 · 数据域 —— */
-  { id: 'd-dataplatform', label: '数据平台', axis: 'domain', group: '数据域', status: 'active', aliases: ['数据'] },
-  { id: 'd-tracking', label: '埋点', axis: 'domain', group: '数据域', status: 'active', aliases: ['埋点规范'] },
-  { id: 'd-metrics', label: '指标体系', axis: 'domain', group: '数据域', status: 'active', aliases: [] },
-  { id: 'd-realtime', label: '实时计算', axis: 'domain', group: '数据域', status: 'active', aliases: [] },
-  { id: 'd-warehouse', label: '数据仓库', axis: 'domain', group: '数据域', status: 'active', aliases: [] },
-  { id: 'd-bi', label: '经营看板', axis: 'domain', group: '数据域', status: 'active', aliases: ['BI'] },
-  { id: 'd-experiment', label: 'A/B 实验平台', axis: 'domain', group: '数据域', status: 'active', aliases: ['实验'] },
-  { id: 'd-dataquality', label: '数据质量', axis: 'domain', group: '数据域', status: 'active', aliases: [] },
-
-  /* —— 领域轴 · 平台与基础设施 —— */
-  { id: 'd-sso', label: 'SSO 统一身份', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['SSO', '平台'] },
-  { id: 'd-cicd', label: 'CI/CD 流水线', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: [] },
-  { id: 'd-observability', label: '可观测性', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['监控'] },
-  { id: 'd-grafana', label: 'Grafana 看板', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['Grafana'] },
-  { id: 'd-stability', label: '稳定性工程', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['稳定性'] },
-  { id: 'd-security', label: '安全与合规', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: ['安全', '合规', '权限', '审计'] },
-  { id: 'd-gateway', label: 'API 网关', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: [] },
-  { id: 'd-cloudnative', label: '云原生', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: [] },
-  { id: 'd-config', label: '配置与发布', axis: 'domain', group: '平台与基础设施', status: 'active', aliases: [] },
-
-  /* —— 领域轴 · 组织与流程域 —— */
-  { id: 'd-demand', label: '需求管理', axis: 'domain', group: '组织与流程域', status: 'active', aliases: ['流程'] },
-  { id: 'd-docs', label: '知识沉淀', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
-  { id: 'd-collab', label: '跨部门协同', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
-  { id: 'd-design-system', label: '设计系统', axis: 'domain', group: '组织与流程域', status: 'active', aliases: ['设计规范', '设计令牌'] },
-  { id: 'd-onboarding', label: '新人上手', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
-  { id: 'd-ops-process', label: '研发流程', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
-  { id: 'd-content-ops', label: '内容运营', axis: 'domain', group: '组织与流程域', status: 'active', aliases: ['门户内容', '公告'] },
-  { id: 'd-portal', label: '内部门户', axis: 'domain', group: '组织与流程域', status: 'active', aliases: [] },
-
-  /* —— 领域轴 · 已废弃 / 已合并（用于展示 chip 的 4 种状态）—— */
+  /* —— 分组 1 · 历史标签（deprecated / merged，用于展示 chip 状态）—— */
   {
     id: 'd-ai-stack',
     label: 'AI 技术栈',
-    axis: 'domain',
-    group: 'AI 与智能',
+    group: 'AI 与算法',
     status: 'deprecated',
     aliases: [],
   },
   {
     id: 'd-agent-framework',
     label: 'Agent 框架',
-    axis: 'domain',
-    group: 'AI 与智能',
+    group: 'AI 与算法',
     status: 'merged',
     aliases: [],
     mergedInto: 'd-agent',
   },
 
-  /* —— 能力类型轴 · 工程技术 —— */
-  { id: 'c-architecture', label: '系统架构', axis: 'capability', group: '工程技术', status: 'active', aliases: ['架构'] },
-  { id: 'c-perf', label: '性能优化', axis: 'capability', group: '工程技术', status: 'active', aliases: ['性能', '前端'] },
-  { id: 'c-backend', label: '后端工程', axis: 'capability', group: '工程技术', status: 'active', aliases: [] },
-  { id: 'c-frontend', label: '前端工程', axis: 'capability', group: '工程技术', status: 'active', aliases: [] },
-  { id: 'c-reliability', label: '可靠性设计', axis: 'capability', group: '工程技术', status: 'active', aliases: ['可靠性'] },
-  { id: 'c-testing', label: '测试与质量', axis: 'capability', group: '工程技术', status: 'active', aliases: ['测试'] },
-  { id: 'c-code-review', label: '代码评审', axis: 'capability', group: '工程技术', status: 'active', aliases: [] },
-  { id: 'c-security-eng', label: '安全工程', axis: 'capability', group: '工程技术', status: 'active', aliases: [] },
+  /* —— 分组 2 · 工程与架构 —— */
+  { id: 'c-architecture', label: '系统架构', group: '工程与架构', status: 'active', aliases: ['架构'] },
+  { id: 'c-backend', label: '后端工程', group: '工程与架构', status: 'active', aliases: [] },
+  { id: 'c-frontend', label: '前端工程', group: '工程与架构', status: 'active', aliases: [] },
+  { id: 'c-perf', label: '性能优化', group: '工程与架构', status: 'active', aliases: ['性能', '前端'] },
+  { id: 'c-reliability', label: '可靠性设计', group: '工程与架构', status: 'active', aliases: ['可靠性'] },
+  { id: 'c-testing', label: '测试与质量', group: '工程与架构', status: 'active', aliases: ['测试'] },
+  { id: 'c-code-review', label: '代码评审', group: '工程与架构', status: 'active', aliases: [] },
+  { id: 'c-security-eng', label: '安全工程', group: '工程与架构', status: 'active', aliases: [] },
+  { id: 'd-cicd', label: 'CI/CD 流水线', group: '工程与架构', status: 'active', aliases: [] },
+  { id: 'd-observability', label: '可观测性', group: '工程与架构', status: 'active', aliases: ['监控'] },
+  { id: 'd-stability', label: '稳定性工程', group: '工程与架构', status: 'active', aliases: ['稳定性'] },
+  { id: 'd-gateway', label: 'API 网关', group: '工程与架构', status: 'active', aliases: [] },
+  { id: 'd-config', label: '配置与发布', group: '工程与架构', status: 'active', aliases: [] },
+  { id: 'd-grafana', label: 'Grafana 看板', group: '工程与架构', status: 'active', aliases: ['Grafana'] },
 
-  /* —— 能力类型轴 · 产品与设计 —— */
-  { id: 'c-product', label: '产品设计', axis: 'capability', group: '产品与设计', status: 'active', aliases: ['产品'] },
-  { id: 'c-ux', label: '交互设计', axis: 'capability', group: '产品与设计', status: 'active', aliases: ['设计'] },
-  { id: 'c-research', label: '用户研究', axis: 'capability', group: '产品与设计', status: 'active', aliases: [] },
-  { id: 'c-spec', label: '规范制定', axis: 'capability', group: '产品与设计', status: 'active', aliases: [] },
-  { id: 'c-content', label: '内容撰写', axis: 'capability', group: '产品与设计', status: 'active', aliases: [] },
-  { id: 'c-visual', label: '视觉表达', axis: 'capability', group: '产品与设计', status: 'active', aliases: [] },
-
-  /* —— 能力类型轴 · 数据与分析 —— */
-  { id: 'c-data-eng', label: '数据工程', axis: 'capability', group: '数据与分析', status: 'active', aliases: ['数据工程'] },
-  { id: 'c-analytics', label: '数据分析', axis: 'capability', group: '数据与分析', status: 'active', aliases: ['数据分析'] },
-  { id: 'c-modeling', label: '数据建模', axis: 'capability', group: '数据与分析', status: 'active', aliases: [] },
-  { id: 'c-metrics-design', label: '指标设计', axis: 'capability', group: '数据与分析', status: 'active', aliases: [] },
-  { id: 'c-ml', label: '算法与建模', axis: 'capability', group: '数据与分析', status: 'active', aliases: ['算法'] },
-
-  /* —— 能力类型轴 · 项目管理与协作 —— */
-  { id: 'c-planning', label: '需求拆解与排期', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
-  { id: 'c-milestone', label: '里程碑管理', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
-  { id: 'c-cross-team', label: '跨团队协同', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
-  { id: 'c-mentoring', label: '带人与分享', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
-  { id: 'c-stakeholder', label: '干系人沟通', axis: 'capability', group: '项目管理与协作', status: 'active', aliases: [] },
-
-  /* —— 能力类型轴 · 已停用（展示 chip 的 deprecated 状态）—— */
+  /* —— 分组 2 · 历史标签（已停用）—— */
   {
     id: 'c-fullstack',
     label: '全栈开发',
-    axis: 'capability',
-    group: '工程技术',
+    group: '工程与架构',
     status: 'deprecated',
     aliases: [],
   },
+
+  /* —— 分组 3 · 数据与分析 —— */
+  { id: 'd-dataplatform', label: '数据平台', group: '数据与分析', status: 'active', aliases: ['数据'] },
+  { id: 'd-tracking', label: '埋点', group: '数据与分析', status: 'active', aliases: ['埋点规范'] },
+  { id: 'd-metrics', label: '指标体系', group: '数据与分析', status: 'active', aliases: [] },
+  { id: 'd-realtime', label: '实时计算', group: '数据与分析', status: 'active', aliases: [] },
+  { id: 'd-warehouse', label: '数据仓库', group: '数据与分析', status: 'active', aliases: [] },
+  { id: 'd-bi', label: '经营看板', group: '数据与分析', status: 'active', aliases: ['BI'] },
+  { id: 'd-experiment', label: 'A/B 实验平台', group: '数据与分析', status: 'active', aliases: ['实验'] },
+  { id: 'd-dataquality', label: '数据质量', group: '数据与分析', status: 'active', aliases: [] },
+  { id: 'c-data-eng', label: '数据工程', group: '数据与分析', status: 'active', aliases: ['数据工程'] },
+  { id: 'c-analytics', label: '数据分析', group: '数据与分析', status: 'active', aliases: ['数据分析'] },
+  { id: 'c-modeling', label: '数据建模', group: '数据与分析', status: 'active', aliases: [] },
+
+  /* —— 分组 3 · 历史标签（已合并 → d-metrics）—— */
+  {
+    id: 'c-metrics-design',
+    label: '指标设计',
+    group: '数据与分析',
+    status: 'merged',
+    aliases: [],
+    mergedInto: 'd-metrics',
+  },
+
+  /* —— 分组 4 · 产品与设计 —— */
+  { id: 'c-product', label: '产品设计', group: '产品与设计', status: 'active', aliases: ['产品'] },
+  { id: 'c-ux', label: '交互设计', group: '产品与设计', status: 'active', aliases: ['设计'] },
+  { id: 'c-research', label: '用户研究', group: '产品与设计', status: 'active', aliases: [] },
+  { id: 'c-spec', label: '规范制定', group: '产品与设计', status: 'active', aliases: [] },
+  { id: 'c-content', label: '内容撰写', group: '产品与设计', status: 'active', aliases: [] },
+  { id: 'c-visual', label: '视觉表达', group: '产品与设计', status: 'active', aliases: [] },
+
+  /* —— 分组 5 · 业务与场景 —— */
+  { id: 'd-pos', label: '门店 POS', group: '业务与场景', status: 'active', aliases: ['POS'] },
+  { id: 'd-selfcheckout', label: '自助结账', group: '业务与场景', status: 'active', aliases: [] },
+  { id: 'd-esl', label: '电子价签', group: '业务与场景', status: 'active', aliases: ['价签'] },
+  { id: 'd-member', label: '会员增长', group: '业务与场景', status: 'active', aliases: ['会员'] },
+  { id: 'd-points', label: '会员积分', group: '业务与场景', status: 'active', aliases: ['积分'] },
+  { id: 'd-miniapp', label: '会员小程序', group: '业务与场景', status: 'active', aliases: ['小程序'] },
+  { id: 'd-ecommerce', label: '线上商城', group: '业务与场景', status: 'active', aliases: ['电商', '电商平台'] },
+  { id: 'd-promo', label: '促销与优惠', group: '业务与场景', status: 'active', aliases: ['促销', '交易'] },
+  { id: 'd-supply', label: '供应链数字化', group: '业务与场景', status: 'active', aliases: ['供应链', '库存'] },
+  { id: 'd-store', label: '门店数字化', group: '业务与场景', status: 'active', aliases: ['门店'] },
+  { id: 'd-app', label: '迪卡侬 App', group: '业务与场景', status: 'active', aliases: ['App'] },
+  { id: 'd-crm', label: '会员与 CRM', group: '业务与场景', status: 'active', aliases: ['CRM'] },
+  { id: 'd-order', label: '订单与履约', group: '业务与场景', status: 'active', aliases: ['订单'] },
+
+  /* —— 分组 5 · 历史标签（已合并 → d-supply）—— */
+  {
+    id: 'd-replenish',
+    label: '智能补货',
+    group: '业务与场景',
+    status: 'merged',
+    aliases: ['补货'],
+    mergedInto: 'd-supply',
+  },
+
+  /* —— 分组 6 · 平台与安全 —— */
+  { id: 'd-sso', label: 'SSO 统一身份', group: '平台与安全', status: 'active', aliases: ['SSO', '平台'] },
+  { id: 'd-security', label: '安全与合规', group: '平台与安全', status: 'active', aliases: ['安全', '合规', '权限', '审计'] },
+  { id: 'd-cloudnative', label: '云原生', group: '平台与安全', status: 'active', aliases: [] },
+
+  /* —— 分组 7 · 协作与流程 —— */
+  { id: 'd-demand', label: '需求管理', group: '协作与流程', status: 'active', aliases: ['流程'] },
+  { id: 'd-docs', label: '知识沉淀', group: '协作与流程', status: 'active', aliases: [] },
+  { id: 'd-collab', label: '跨部门协同', group: '协作与流程', status: 'active', aliases: [] },
+  { id: 'd-design-system', label: '设计系统', group: '协作与流程', status: 'active', aliases: ['设计规范', '设计令牌'] },
+  { id: 'd-onboarding', label: '新人上手', group: '协作与流程', status: 'active', aliases: [] },
+  { id: 'd-ops-process', label: '研发流程', group: '协作与流程', status: 'active', aliases: [] },
+  { id: 'd-content-ops', label: '内容运营', group: '协作与流程', status: 'active', aliases: ['门户内容', '公告'] },
+  { id: 'd-portal', label: '内部门户', group: '协作与流程', status: 'active', aliases: [] },
+  { id: 'c-planning', label: '需求拆解与排期', group: '协作与流程', status: 'active', aliases: [] },
+  { id: 'c-milestone', label: '里程碑管理', group: '协作与流程', status: 'active', aliases: [] },
+  { id: 'c-cross-team', label: '跨团队协同', group: '协作与流程', status: 'active', aliases: [] },
+  { id: 'c-mentoring', label: '带人与分享', group: '协作与流程', status: 'active', aliases: [] },
+  { id: 'c-stakeholder', label: '干系人沟通', group: '协作与流程', status: 'active', aliases: [] },
 ];
 
 /** 词表索引：id → 定义 */
@@ -928,16 +944,20 @@ export const TAG_BY_ID = TAG_DICT.reduce((m, t) => {
   return m;
 }, {});
 
-/** 领域轴域分组顺序（用于反查页 chip 组按域分组分行） */
-export const DOMAIN_GROUPS = [
-  'AI 与智能',
-  '业务系统域',
-  '数据域',
-  '平台与基础设施',
-  '组织与流程域',
+/**
+ * SKILL_GROUPS —— 技能标签树的 7 个一级分组（渲染顺序，不可改）。
+ * v0.4.1 单树化：原「双轴」两组表（领域轴 / 能力类型轴）已合并为这一份单一分组表，
+ * 旧名不再导出。
+ */
+export const SKILL_GROUPS = [
+  'AI 与算法',
+  '工程与架构',
+  '数据与分析',
+  '产品与设计',
+  '业务与场景',
+  '平台与安全',
+  '协作与流程',
 ];
-/** 能力类型轴能力族顺序 */
-export const CAP_GROUPS = ['工程技术', '产品与设计', '数据与分析', '项目管理与协作'];
 
 /**
  * personId(email) —— 派生人员 id（唯一事实来源）
@@ -1135,7 +1155,7 @@ function withinWindow(dateStr) {
 /**
  * 收集全部证据条目（不入个人页，未匹配到人的条目仍保留在部门级列表里）。
  * 每条：{ kind, weight, personName, date, title, summary, path, tagIds[] }
- *   · tagIds 由 category / tags 经 TAG_DICT.aliases 映射到领域轴标签。
+ *   · tagIds 由 category / tags 经 TAG_DICT.aliases 映射到技能标签（单树，命中即计入）。
  *   · bestPractices 与 articles 有重叠条目 → 以 id 去重（优先 article 全文，权重同 3）。
  */
 function collectEvidence() {
@@ -1150,8 +1170,9 @@ function collectEvidence() {
   const mapToTags = (words) => {
     const ids = new Set();
     (words || []).forEach((w) => {
+      // v0.4.1 单树化：不再有「轴闸门」——只要命中词表即计入（命中即计入）。
       const hit = aliasesToTag[String(w || '').trim()];
-      if (hit && TAG_BY_ID[hit] && TAG_BY_ID[hit].axis === 'domain') ids.add(hit);
+      if (hit && TAG_BY_ID[hit]) ids.add(hit);
     });
     return Array.from(ids);
   };
@@ -1266,7 +1287,7 @@ export function tierOfScore(score) {
 export function getPersonProfile(personIdOrEmail) {
   const key = String(personIdOrEmail || '').toLowerCase();
   const person = orgPeople.find((p) => personId(p.email) === key) || null;
-  if (!person) return { person: null, tags: [], stats: { domain: 0, capability: 0, recent: 0 }, contributions: [] };
+  if (!person) return { person: null, tags: [], contributions: [] };
 
   const mapping = personTags[key] || {};
   const primaries = primaryTags[key] || [];
@@ -1325,40 +1346,28 @@ export function getPersonProfile(personIdOrEmail) {
     };
   };
 
-  // 领域轴在上、能力轴在下；各自内部按主标签优先，其余保持词表顺序
+  // v0.4.1 单树：按 SKILL_GROUPS 的组序排列；组内 primary 优先，再按词表索引。
   const orderOf = (id) => TAG_DICT.findIndex((t) => t.id === id);
+  const groupRank = (g) => {
+    const i = SKILL_GROUPS.indexOf(g);
+    return i === -1 ? SKILL_GROUPS.length : i;
+  };
   const tags = Object.keys(mapping)
     .map(buildTag)
     .filter(Boolean)
     .sort((a, b) => {
-      if (a.tag.axis !== b.tag.axis) return a.tag.axis === 'domain' ? -1 : 1;
+      const ga = groupRank(a.tag.group);
+      const gb = groupRank(b.tag.group);
+      if (ga !== gb) return ga - gb;
       if (a.primary !== b.primary) return a.primary ? -1 : 1;
       return orderOf(a.tag.id) - orderOf(b.tag.id);
     });
 
-  const domainCount = tags.filter((t) => t.tag.axis === 'domain').length;
-  const capCount = tags.filter((t) => t.tag.axis === 'capability').length;
-  const recentEvidence = contributions.filter((e) => withinWindow(e.date)).length;
-
   return {
     person,
     tags,
-    stats: { domain: domainCount, capability: capCount, recent: recentEvidence },
     contributions,
   };
-}
-
-/** 该人负责的工具（toolGroups.owner 命中）——协作触点 */
-export function toolsOfPerson(person) {
-  if (!person) return [];
-  const out = [];
-  toolGroups.forEach((g) => {
-    g.tools.forEach((t) => {
-      const owner = parseOwnerName(t.owner);
-      if (owner != null && owner === person.name) out.push({ ...t, group: g.label });
-    });
-  });
-  return out;
 }
 
 /** 标签 → 懂它的人（反查页：按姓名排序，绝不做实证度排序） */

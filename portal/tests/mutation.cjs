@@ -33,7 +33,7 @@
  * ⚠️ 基线维护（重要，必须遵守）
  * ------------------------------------------------------------------
  *   TARGETS 里的 sha256 是**硬编码**的洁净锚点，这是刻意的「显式确认」设计。
- *   因此：**只要你有意修改了这 5 个源文件中的任意一个，就必须重跑
+ *   因此：**只要你有意修改了这 7 个源文件中的任意一个，就必须重跑
  *   `node tests/mutation.cjs --print-sha` 并把输出同步更新到 TARGETS**，
  *   否则下次启动会因 sha 不符而被拒绝（这是防止「在不知情的脏树上做变异」）。
  *   --print-sha 只打印当前 sha，不会写任何文件。
@@ -72,6 +72,7 @@ if (process.argv.includes('--print-sha')) {
     'src/global.css',
     'src/components/demand/ScaleChips.jsx',
     'src/components/demand/BrdAssistantCard.jsx',
+    'src/components/ui.jsx',
   ];
   for (const rel of list) {
     const abs0 = path.join(ROOT, rel);
@@ -92,10 +93,11 @@ if (process.argv.includes('--print-sha')) {
 const TARGETS = {
   'src/pages/Workspace.jsx': 'C20F4CA5976D082192F977BB0B29B3D7CE8413BA26B7611D13901D00B0CEECC1',
   'src/pages/DemandNew.jsx': '135AB61F269C16D291AEC7A56F3851B409492FCCFB63C06BE181FD7CBE4CF8A5',
-  'src/data/mock.js': 'B375CB23F13BE6E98EBFF148986B83F6B21F194BE9080E783D8A34FC883735A8',
-  'src/global.css': '2074979CC4A6E8FB9DCB982D7C3C7B3F30A62115C4C268258ACA8EBEE3E4B33D',
+  'src/data/mock.js': '650F9E2CA0C79A1D700C30C1D70AB47AA7C987897E46521781638D63985A970E',
+  'src/global.css': '4BD81BF2EB06250D87421C7D09EC48FA2B0CAC52EC255D88AD2720509741FB94',
   'src/components/demand/ScaleChips.jsx': 'B63C695F6A21AD633E7EF7B52025E03C41AD5971661C2C488CA202D87A2BECF1',
   'src/components/demand/BrdAssistantCard.jsx': 'CFDCEBC83DDADDF331DC748AB07256B28E6803F9E431D859E69C187C2A7BC2E6',
+  'src/components/ui.jsx': 'A9B9233128F668CD074CAE5E7101D95A1584D707CB80E60A54649C3C76760CF7',
 };
 
 /* 每个变异：file + 精确 find/replace + 期望变红的断言子串 */
@@ -141,6 +143,41 @@ const MUTATIONS = [
     find: "    setMessages((m) => [...m, { role: 'user', text: p }, { role: 'agent', text: hit ? hit.text : brdAgentIntro }]);",
     repl: "    setMessages((m) => [...m.filter((x) => !x.pending), { role: 'user', text: p }, { role: 'agent', text: hit ? hit.text : brdAgentIntro }]);",
     expectRed: '点快捷问题后保留 agent 建议',
+  },
+
+  /* ===== 以下 M7–M9 为 v0.4.1（单树化 + 主页化 + 减法）新增覆盖 =====
+     此前 6 个变异全部指向 v0.3 的 demand / BRD 代码，v0.4.1 的真改动（tag 树 /
+     个人主页 / TagBrowse / 单树逻辑）零变异覆盖 —— 「名义覆盖 ≠ 实际覆盖」的复发风险。
+     每个 find 字符串在目标文件里**恰好命中 1 次**（已用脚本逐一核验），执行后真让对应断言变红。 */
+  {
+    id: 'M7 v0.4.1 SKILL_GROUPS 单树分组表被改坏',
+    file: 'src/data/mock.js',
+    // SKILL_GROUPS 数组中「协作与流程」这一项（2 空格缩进、独占一行）——全文件唯一命中。
+    // 改坏后：TagMatrix 的 buckets 过滤（t.tag.group === g）失配 → 周敏的「协作与流程」整组消失，
+    // 标签树 Panel 头从「2 组 · 共 8 个标签」变「1 组 · 共 8 个标签」→ 分组渲染口径门变红。
+    // （注：peopleNeed 的 '协作与流程' 之所以仍命中，是因为标签卡的分组名行取 t.tag.group（词表值），
+    //  不取 SKILL_GROUPS —— 故 expectRed 必须挂「分组渲染口径」门，而非「个人主页渲染」。）
+    find: "  '协作与流程',",
+    repl: "  '协作流程',",
+    expectRed: 'v0.4.1 TagMatrix 分组渲染口径',
+  },
+  {
+    id: 'M8 v0.4.1 TagMatrix 去掉「只渲染有标签的分组」过滤',
+    file: 'src/components/ui.jsx',
+    // 去掉 .filter((b) => b.list.length > 0) → 空组照渲：周敏标签树从「2 组 · 共 8 个标签」
+    // 变「7 组 · 共 8 个标签」，且空组名（AI 与算法 / 平台与安全）冒上屏。
+    find: '  })).filter((b) => b.list.length > 0);',
+    repl: '  }));',
+    expectRed: 'v0.4.1 TagMatrix 分组渲染口径',
+  },
+  {
+    id: 'M9 v0.4.1 个人主页栅格 1.85fr 退化为 1fr（等宽两栏）',
+    file: 'src/global.css',
+    // 把主栏 1.85fr 改成 1fr → 两栏等宽，破坏「标签为主、贡献为辅」的非对称栅格。
+    find: '.dp-g-profile {\n  grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);\n}',
+    repl: '.dp-g-profile {\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n}',
+    // smoke 里的样式表规则级文本门（assets/style.css 中该规则必须精确匹配 1.85fr/1fr）
+    expectRed: 'v0.4.1 .dp-g-profile 栅格',
   },
 ];
 
