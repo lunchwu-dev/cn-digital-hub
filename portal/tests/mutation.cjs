@@ -64,200 +64,20 @@ const VITE_JS = path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
 const BACKUP_DIR = path.join(ROOT, 'tests', '.mutation-backup');
 const LOCK_FILE = path.join(ROOT, 'tests', '.mutation.lock');
 
+const { TARGETS, MUTATIONS } = require('./_mutations.data.cjs');
+
 /* --print-sha：打印被变异文件的当前 sha256，便于在**有意**修改源文件后重建基线。
-   只读，不写任何文件。用法见文件头「基线维护」。 */
+   只读，不写任何文件。用法见文件头「基线维护」。
+   清单即 TARGETS 的键（基线 sha 与变异清单的单一事实源在 tests/_mutations.data.cjs）。 */
 if (process.argv.includes('--print-sha')) {
   const crypto0 = require('crypto');
-  const list = [
-    'src/pages/Workspace.jsx',
-    'src/pages/DemandNew.jsx',
-    'src/data/mock.js',
-    'src/global.css',
-    'src/components/demand/ScaleChips.jsx',
-    'src/components/demand/BrdAssistantCard.jsx',
-    'src/components/ui.jsx',
-  ];
-  for (const rel of list) {
+  for (const rel of Object.keys(TARGETS)) {
     const abs0 = path.join(ROOT, rel);
     const h = crypto0.createHash('sha256').update(require('fs').readFileSync(abs0)).digest('hex').toUpperCase();
     console.log("  '" + rel + "': '" + h + "',");
   }
   process.exit(0);
 }
-
-/* ------------------------------------------------------------------ *
- * 被变异文件清单 + 已知 good 的 sha256 基线
- * ------------------------------------------------------------------
- * 这份基线是「洁净工作树」的确定性锚点：只有全部一致才允许开跑。
- * 若你**有意**修改了这些源文件，必须同步更新此处 sha，否则脚本会拒绝启动
- * （这正是设计意图：强制显式确认，避免在不知情的脏树上做变异）。
- * 更新方式：跑 `node tests/mutation.cjs --print-sha`，把输出行原样粘到下面。
- * ------------------------------------------------------------------ */
-const TARGETS = {
-  'src/pages/Workspace.jsx': 'F449B1E5E7FD2273414DF81B4F098F8C09DC8933C524F2CCE5FA2D9BE04B0431',
-  'src/pages/DemandNew.jsx': '135AB61F269C16D291AEC7A56F3851B409492FCCFB63C06BE181FD7CBE4CF8A5',
-  'src/data/mock.js': '027243E3B6723F7BB3210AF145C2D2C5D1DF293FD1F529BA1B1820C4E65E16FF',
-  'src/global.css': 'D9AC2F109748575293F7D6554F86F78262E4C7041EAA35429D47AE3557E06D14',
-  'src/components/demand/ScaleChips.jsx': 'B63C695F6A21AD633E7EF7B52025E03C41AD5971661C2C488CA202D87A2BECF1',
-  'src/components/demand/BrdAssistantCard.jsx': 'CFDCEBC83DDADDF331DC748AB07256B28E6803F9E431D859E69C187C2A7BC2E6',
-  'src/components/ui.jsx': '430E8913062917AE7F34A053950AA19A2148F76FA6240D8AF45993FDFEC986E7',
-};
-
-/* 每个变异：file + 精确 find/replace + 期望变红的断言子串 */
-const MUTATIONS = [
-  {
-    id: 'M1 P0-1 内联 display 回归',
-    file: 'src/pages/DemandNew.jsx',
-    find: '<div className="dp-demand-side">',
-    repl: '<div className="dp-demand-side" style={{ display: \'flex\', flexDirection: \'column\', gap: 16 }}>',
-    expectRed: 'P0-1 右栏容器无内联 display',
-  },
-  {
-    id: 'M2 P0-1 ≤900 顺序规则删除',
-    file: 'src/global.css',
-    find: '  .dp-demand-promise {\n    order: 1;\n  }\n',
-    repl: '',
-    expectRed: 'P0-1 ≤900px 媒体块完整', // 变异后 orderHits<4，走 fail 分支
-  },
-  {
-    id: 'M3 P0-2 「说不清」chip 文案删除',
-    file: 'src/data/mock.js',
-    find: "{ value: DEMAND_UNSURE, label: '说不清，帮我定位' },",
-    repl: "{ value: DEMAND_UNSURE, label: '系统不详' },",
-    expectRed: '涉及系统含「说不清，帮我定位」合法选项',
-  },
-  {
-    id: 'M4 P1-2 三态提示退化为二态',
-    file: 'src/pages/DemandNew.jsx',
-    find: "    hint: i.state === 'full' ? i.fullHint : i.state === 'partial' ? i.partialHint : i.emptyHint || i.partialHint,",
-    repl: "    hint: i.state === 'full' ? i.fullHint : i.state === 'partial' ? i.partialHint : i.partialHint,",
-    expectRed: 'P1-2 未填「验收标准」用独立 emptyHint',
-  },
-  {
-    id: 'M5 P2-2 去掉鼠标焦点抑制',
-    file: 'src/components/demand/ScaleChips.jsx',
-    find: '        setFocused(!pointer.current);',
-    repl: '        setFocused(true);',
-    expectRed: 'P2-2 胶囊焦点环行为', // 变异后 mouse 也变 2px，走 fail 分支
-  },
-  {
-    id: 'M6 保留建议：点 chip 时清空 pending',
-    file: 'src/components/demand/BrdAssistantCard.jsx',
-    find: "    setMessages((m) => [...m, { role: 'user', text: p }, { role: 'agent', text: hit ? hit.text : brdAgentIntro }]);",
-    repl: "    setMessages((m) => [...m.filter((x) => !x.pending), { role: 'user', text: p }, { role: 'agent', text: hit ? hit.text : brdAgentIntro }]);",
-    expectRed: '点快捷问题后保留 agent 建议',
-  },
-
-  /* ===== 以下 M7/M8/M12 于 v0.4.3 **重定向** =====
-     v0.4.3 去掉了 v0.4.1 的分组结构（groupBar / buckets / 「N 组 · 共 M 个标签」口径），
-     原 M7/M8/M12 的 find/expectRed 随之失效（空转变异风险）。按 team-lead「清理失效旧归因」
-     要求，将它们重定向到 v0.4.3 的**活不变量**（Jira 工作楼层 / 横排标签楼层）。
-     每个 find 串在目标文件里**恰好命中 1 次**（已用脚本逐一核验，见交付报告）。 */
-  {
-    id: 'M7 v0.4.3 getPersonWork 过滤掉 blocked（blocked 行被整行吞掉）',
-    file: 'src/data/mock.js',
-    // 在未完结过滤器上再加 `&& i.status !== 'blocked'` → 周敏的 DS-3121（blocked 样本）整条从
-    // 工作列表消失 → smoke「v0.4.3 blocked 任务整行仍渲染」门找不到 DS-3121 行 → 变红。
-    // 这正是规范 §5 铁律「blocked 不上屏但整行照常渲染」的反向守卫。
-    find: "  const open = JIRA_ISSUES.filter((i) => i.assigneeId === key && i.status !== 'done');",
-    repl: "  const open = JIRA_ISSUES.filter((i) => i.assigneeId === key && i.status !== 'done' && i.status !== 'blocked');",
-    expectRed: 'v0.4.3 blocked 整行仍渲染',
-  },
-  {
-    id: 'M8 v0.4.3 技能标签楼层去掉 .dp-tag-floor 横排容器',
-    file: 'src/components/ui.jsx',
-    // 把 .dp-tag-floor 容器改名 → 标签卡直接挂在普通 div 下：
-    //   ①「标签矩阵使用 .dp-tag-floor」门失配；②「标签卡数量」门（.dp-tag-floor .dp-card = 8）读到 0；
-    //   ③ 结构判档门读不到卡。三重变红。
-    find: '<div className="dp-tag-floor">{tags.map(tagCard)}</div>',
-    repl: '<div className="dp-tag-grid">{tags.map(tagCard)}</div>',
-    expectRed: 'v0.4.3 标签卡数量',
-  },
-
-  /* ===== 以下 M10–M12 为 v0.4.2（删主标签 + 拆双轨成熟度 + 加点赞）新增覆盖 =====
-     本轮真改动（SystemTier / TagLike / baseLikesOf / personTags 值改造）此前零变异覆盖。
-     每个 find 串在目标文件里**恰好命中 1 次**（已用脚本逐一核验，证据见交付报告），
-     且执行后真让对应 v0.4.2 断言变红。 */
-  {
-    id: 'M10 v0.4.2 点赞基线取模 2 → 7（计数越界，值域破坏）',
-    file: 'src/data/mock.js',
-    // baseLikesOf 内唯一一行取模（mock.js 全文件仅此处出现 `h %`）。
-    // 改成 % 7 → 基线计数落到 {0..6} 而非 {0,1}：
-    //   ①「点赞基线确定性」门（baseLikesOf('min.zhou','c-visual') === 1 期望落空）；
-    //   ②「likes 值域 {0,1}」字段契约门变红。
-    find: '  return h % 2;',
-    repl: '  return h % 7;',
-    expectRed: 'v0.4.2 点赞基线确定性',
-  },
-  {
-    id: 'M11 v0.4.2 TagLike 去掉 onClick 的 e.stopPropagation()（点赞误触跳转）',
-    file: 'src/components/ui.jsx',
-    // ⚠️「e.stopPropagation();」在 ui.jsx 有 2 处（TagLike 的 onClick 与 onKeyDown），
-    //   故 find 必须带上下文（onClick 分支特有的下一行 setLiked）才能唯一命中。
-    // 删掉后：点赞冒泡到父级标签卡 role=button onClick → go('#/workspace/tags/'+id)
-    //   → 路由跳到反查页 → 「点赞点击 +1 且未跳转」门变红。
-    find: '        e.stopPropagation();\n        setLiked((v) => !v);',
-    repl: '        setLiked((v) => !v);',
-    expectRed: 'v0.4.2 门⑦ 点赞点击',
-  },
-  {
-    id: 'M12 v0.4.3 personTags 少一个 key（周敏标签 8 → 7，标签卡数量门变红）',
-    file: 'src/data/mock.js',
-    // 删除周敏的一个标签行（用注释行做唯一锚点，保证 find 唯一命中）：
-    //   周敏标签数 8 → 7，smoke「v0.4.3 标签卡数量与内部分组名小字（周敏 8 张）」门读到 7 → 变红。
-    //   同时「v0.4.3 TagMatrix desc = 共 8 个标签」门失配（desc 变「共 7 个标签」）→ 双门变红。
-    // 注：v0.4.3 返修后周敏首个标签为 'd-design-system'（此前被误删、现已恢复），故 find 锚其下。
-    find: "    // 设计系统负责人：标签更新于 2026-09-16\n    'd-design-system': true,",
-    repl: '    // 设计系统负责人：标签更新于 2026-09-16',
-    expectRed: 'v0.4.3 标签卡数量',
-  },
-
-  /* ===== M13 / M14 为 v0.4.3（Jira 工作楼层 + 技能标签横排 + 楼层重排）新增覆盖 =====
-     v0.4.3 的核心新改动（.dp-tag-floor 横排 / .dp-g-duo 等宽双栏 / Jira 工作卡）此前零变异覆盖。
-     M13/M14 覆盖楼层 3 的「等宽双栏」栅格——**拆成两条各守一个子断言**（见 M14 起的详细说明）；
-     Jira 数据的结构不变量（排序/窗口/blocked 整行）由 smoke 的 v0.4.3 结构门 + 数据层确定性
-     断言钉住（见交付报告变异覆盖矩阵）。
-
-     ⚠️ P1 返修（「文本门冒充实测门」）：M13 原先的 expectRed 挂在 smoke 的**样式表文本门**
-     上——那只能证明「CSS 里那两行字变了」，**不能证明版式真的退化成单列**。
-     v0.4.3 等宽双栏的**版式事实**只能由真实浏览器（有布局引擎）量到。故 M13 改为挂
-     **几何实测门**：变异后用专用 CDP 探针 tests/_geom_duo.cjs（复刻 shots 断言 1d 的采集口径）
-     加载个人主页、量 1440 视口下 .dp-g-duo 两栏的实际渲染宽度比。退单列 → ok=false（exit 2）→ 变红。
-     gate:'geom-duo' 让运行器对本条走几何探针而非 smoke。
-
-     ⚠️ 复核补漏：M13 **只守 leftDiff**（真双栏）；「等宽」那半个语义由 M14 独立守。 */
-  {
-    id: 'M13 v0.4.3 楼层 3 等宽双栏 .dp-g-duo 退化为单列',
-    file: 'src/global.css',
-    // 把 .dp-g-duo 的 1fr/1fr 两列改成单列 → 近期工作 / 近期知识贡献 上下堆叠，
-    // 破坏「两个平级模块并排」的 v0.4.3 楼层 3 版式。
-    // 几何探针会读到：两列 left 相同（单列堆叠）→ ok=false → 变红。
-    find: '.dp-g-duo {\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n}',
-    repl: '.dp-g-duo {\n  grid-template-columns: minmax(0, 1fr);\n}',
-    gate: 'geom-duo',
-    expectRed: 'v0.4.3 门1d .dp-g-duo 等宽双栏（几何实测）',
-  },
-
-  /* ===== M14 为 v0.4.3 复核新补：独立覆盖「等宽（1fr:1fr）」这半个语义 =====
-     ⚠️ 为什么必须独立存在（复核发现的缺口）：
-       M13 把 1fr/1fr 改成**单列** —— 单列下 .dp-g-duo 仍有 2 个子节点（竖向堆叠），
-       故 ratio = w/w = 1.000 → **inBand=true**；M13 的「红」**只由 leftDiff=false 触发**。
-       而运行器只读 gm.ok，不区分子断言 ⇒「等宽 1fr:1fr」这半个语义**从未被真正测过**：
-       即便两栏渲染成 1.4:1（严重不等宽），M13 式变异也会因 leftDiff 已兜住而「红通过」。
-     修法：新增本条，把 1fr/1fr → **1.4fr 1fr**（两栏都还在、leftDiff=true），
-       宽度比越出 [0.92,1.08] ⇒ 期望**只靠 inBand=false** 判红（leftDiff 为 true）。
-     必须与 M13 独立，不可合并——两条各守一个子断言，缺一不可。 */
-  {
-    id: 'M14 v0.4.3 楼层 3 双栏等宽性破坏（.dp-g-duo 1fr:1fr → 1.4fr:1fr，仍双栏但不相等）',
-    file: 'src/global.css',
-    // 两列都保留（仍 2 列、left 不同），但比例 1.4:1 越出等宽带 → inBand=false。
-    // 期望几何探针：ratio≈1.4、leftDiff=true、inBand=false → ok=false → 变红。
-    find: '.dp-g-duo {\n  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);\n}',
-    repl: '.dp-g-duo {\n  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);\n}',
-    gate: 'geom-duo',
-    expectRed: 'v0.4.3 门1d .dp-g-duo 等宽性（几何实测 inBand）',
-  },
-];
 
 /* ================================ 工具 ================================ */
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex').toUpperCase();
@@ -298,28 +118,39 @@ function smoke() {
   };
 }
 
-/* 几何实测门（供 gate:'geom-duo' 的变异用）——
-   调用 tests/_geom_duo.cjs：真实 Chrome + CDP 加载个人主页，量 1440 视口下
-   .dp-g-duo 两栏的实际渲染宽度比（复刻 shots 断言 1d 的口径）。
+/* 几何实测门（供 gate:'geom-gantt' 的变异用）——
+   调用 tests/_geom_gantt.cjs：真实 Chrome + CDP 加载个人主页，量 1440 视口下
+   .dp-gantt 的真实渲染几何与**解析后的色值**（复刻 shots 断言 1d 的采集口径）。
+   v0.5 起取代 v0.4.3 的 geomDuo()（`.dp-g-duo` 已从 DOM 移除，原被测量对象不存在了）。
    判定：探针 output 含 GEOM_JSON，且其中 ok=true → 版式合规（未变红）；
-         ok=false（或非零退出）→ 版式事实被破坏 → **变红**（这正是变异期望）。 */
-function geomDuo() {
-  const r = spawnSync(NODE, [path.join('tests', '_geom_duo.cjs')], { cwd: ROOT, encoding: 'utf8', env: process.env, timeout: 120000 });
+         ok=false（或非零退出）→ 版式事实被破坏 → **变红**（这正是变异期望）。
+   子断言全量拆出（notStacked / widthsEqual / bandColor / bandRadius / bandGap /
+   tierFill / noOverflow），便于报告里写清「红由哪一条触发」——
+   这是 v0.4.3 那次「M13 实际只由 leftDiff 判红」教训的直接产物。 */
+function geomGantt() {
+  const r = spawnSync(NODE, [path.join('tests', '_geom_gantt.cjs')], { cwd: ROOT, encoding: 'utf8', env: process.env, timeout: 120000 });
   const out = (r.stdout || '') + (r.stderr || '');
   const m = out.match(/GEOM_JSON=(\{.*\})/);
   let parsed = null;
   try { parsed = m ? JSON.parse(m[1]) : null; } catch (_) { parsed = null; }
-  // 子断言拆出：leftDiff（真双栏）/ inBand（等宽）——二者都进 ok，缺一不可。
   const verdict = parsed ? parsed.verdict : '(无 GEOM_JSON)';
-  let leftDiff = null, inBand = null, ratio = null;
-  if (parsed) {
-    ratio = parsed.ratio != null ? parsed.ratio : null;
-    const ld = /leftDiff=(\w+)/.exec(verdict);
-    const ib = /inBand=(\w+)/.exec(verdict);
-    leftDiff = ld ? ld[1] === 'true' : null;
-    inBand = ib ? ib[1] === 'true' : null;
-  }
-  return { status: r.status, ok: !!(parsed && parsed.ok), verdict, ratio, leftDiff, inBand, raw: out };
+  const pick = (k) => (parsed && typeof parsed[k] === 'boolean' ? parsed[k] : null);
+  return {
+    status: r.status,
+    ok: !!(parsed && parsed.ok),
+    verdict,
+    ratioMax: parsed ? parsed.ratioMax : null,
+    bandColor: parsed ? parsed.bandColor : null,
+    bandGap: parsed ? parsed.bandGap : null,
+    notStacked: pick('notStacked'),
+    widthsEqual: pick('widthsEqual'),
+    bandColorOk: pick('bandColorOk'),
+    bandRadiusOk: pick('bandRadiusOk'),
+    bandGapOk: pick('bandGapOk'),
+    tierFillOk: pick('tierFillOk'),
+    noOverflow: pick('noOverflow'),
+    raw: out,
+  };
 }
 
 /* ===================== L2/L3：崩溃安全还原骨架 ===================== */
@@ -588,16 +419,31 @@ async function main() {
         continue; // finally 会还原
       }
 
-      /* 分支：几何实测门（gate:'geom-duo'）——用专用 CDP 探针量版式，而非 smoke 文本门。
-         期望：变异后**几何事实被破坏**（ok=false）→ 判「按预期变红」。
-         ok = leftDiff && inBand（真双栏 && 等宽）——两条子断言各由一条变异守（M13/M14），
-         故此处额外报出「红由哪个子断言触发」，便于区分 M13（leftDiff）与 M14（inBand）。 */
-      if (m.gate === 'geom-duo') {
-        const gm = geomDuo();
-        const redBy = gm.leftDiff === false ? 'leftDiff=false（非双栏/塌单列）' : gm.inBand === false ? 'inBand=false（宽度比越出等宽带）' : '(未归因)';
-        if (gm.ok === false) {
+      /* 分支：几何实测门（gate:'geom-gantt'）——用专用 CDP 探针量版式与色值，而非 smoke 文本门。
+         期望：变异后**几何/色值事实被破坏**（ok=false）→ 判「按预期变红」。
+         ok = notStacked && widthsEqual && bandColorOk && bandRadiusOk && bandGapOk
+              && tierFillOk && noOverflow —— 七条子断言各由一条变异守（M13~M16），
+         故此处**必须报出「红由哪一条触发」**：这是 v0.4.3 那次「M13 名义上守 two 条、
+         实际只由 leftDiff 判红」教训的直接后果。若 redBy 归因不到任何子断言，
+         说明该变异红了但**不是几何门红了**（红得不明不白），一样按失败处理。 */
+      if (m.gate === 'geom-gantt') {
+        const gm = geomGantt();
+        const failed = [
+          ['notStacked', 'notStacked=false（栅格塌陷，任务列不再更宽）'],
+          ['widthsEqual', 'widthsEqual=false（8 周列宽度比越出 ≤8%）'],
+          ['bandColorOk', 'bandColorOk=false（色带填充色 ≠ c.brand）'],
+          ['bandRadiusOk', 'bandRadiusOk=false（圆角不在色带两端）'],
+          ['bandGapOk', 'bandGapOk=false（相邻格之间有缝，色带被切开）'],
+          ['tierFillOk', 'tierFillOk=false（档位填充色与计数不符）'],
+          ['noOverflow', 'noOverflow=false（页面本体横向溢出）'],
+        ].filter(([k]) => gm[k] === false).map(([, t]) => t);
+        const redBy = failed.length ? failed.join(' + ') : '(未归因——红了但没有子断言为 false，红得不明不白)';
+        if (gm.ok === false && failed.length > 0) {
           results.push({ id: m.id, ok: true, note: '按预期变红（几何实测）· 红由 ' + redBy, total: 'geom ' + gm.verdict });
           console.log('[OK] ' + m.id + ' → 几何断言变红 ✓   红由 ' + redBy + '   (' + gm.verdict + ')');
+        } else if (gm.ok === false) {
+          results.push({ id: m.id, ok: false, note: '几何断言变红但无法归因到任何子断言', total: 'geom ' + gm.verdict });
+          console.log('[!!] ' + m.id + ' → 变红但未归因 ✗   (' + gm.verdict + ')');
         } else {
           results.push({ id: m.id, ok: false, note: '几何断言未变红（空转风险！）', total: 'geom ' + gm.verdict });
           console.log('[!!] ' + m.id + ' → 几何断言未变红 ✗   (' + gm.verdict + ')');

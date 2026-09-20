@@ -384,7 +384,7 @@ export function SystemTier({ tier = 'none', count, showCopy = true }) {
           这是 v0.4.3「档位文案不上屏但在屏可读」的兜底通道（见 TIER_COPY 注释）。 */}
       <span
         title={copy}
-        style={{ display: 'inline-flex', width: 64, height: 6, gap: 2, flex: '0 0 auto' }}
+        style={{ display: 'inline-flex', width: 64, height: 5, gap: 2, flex: '0 0 auto' }}
       >
         {[1, 2, 3, 4].map((lv) => (
           <span
@@ -483,7 +483,9 @@ export function TagLike({ baseLikes = 0, label = '', size = 14 }) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
-        height: 22,
+        // v0.5 轻量化：22 → 20（点赞高度决定卡片第二行行高，是 −22% 的主要来源之一）。
+        //   图标 size / 左右 padding 均不动 —— 保住点击热区（≥20px 高 · 0 7px 内边距）。
+        height: 20,
         padding: '0 7px',
         borderRadius: 999,
         border: 'none',
@@ -738,7 +740,7 @@ export function WorkStatusPill({ status }) {
 }
 
 /**
- * TagMatrix —— 技能标签横向流式楼层（v0.4.3）
+ * TagMatrix —— 技能标签横向流式楼层（v0.5）
  * ------------------------------------------------------------------
  * v0.4.2 → v0.4.3 变化：**去分组结构**（用户「技能标签卡片不用分组展示」）。
  *   删：groupBar（32px 标题条）、buckets 分段、组内 `.dp-grid.dp-g3.dp-grid--tight`。
@@ -747,23 +749,34 @@ export function WorkStatusPill({ status }) {
  *   来源（横排顺序仍按 SKILL_GROUPS 组序，保留小字用户才懂「为何这几个挨在一起」）。
  *   排序由数据层 getPersonProfile 给出（组序 → 档位降序 → 词表索引），此处**不重排**。
  *
- * 窄卡纪律（132px，不可拆的组合）：min-width:132px + padding:'10px 12px'
- *   + SystemTier `showCopy={false}`（132px 装不下「暂无系统记录」）
+ * v0.4.3 → v0.5 变化（两件，用户「技能标签是不是可以和个人信息糅合成一个大的楼层，
+ *   标签及成熟度的卡片可以再轻量化一些」）：
+ *   ① **不自带 Panel / PanelHead** —— 本组件现在只渲染「糅合楼层下带」的内容，
+ *      由 PersonProfile 把它放进 `.dp-person-head.dp-floor-merged` 内。外层自带 Panel 会
+ *      造成 Panel 套 Panel（双边框 + 双内边距）；标题条（16px）也去掉，改一行 12px meta
+ *      —— 楼层主标题是姓名，再给标签一个标题＝凭空造第二主标题。
+ *   ② **卡片减重 −22.7%**（70.5 → 54.5px）：padding 10/12→8/10、标签名 lh 1.4→1.35、
+ *      点赞高 22→20（TagLike）、档位条高 6→5（SystemTier）、**分组名行与档位行合并为一行**。
+ *      合并行的「双侧 flex:0 0 auto + 不设 maxWidth」是减重能成立的前置条件，见卡内注释。
+ *
+ * 窄卡纪律（132px 是 **minWidth 红线**，不拆）：minWidth:132 + padding:'8px 10px'
+ *   + SystemTier `showCopy={false}`（窄卡装不下「暂无系统记录」）
  *   + 标签名 `title` 原生 tooltip（截断的补偿）。
+ *   注：minWidth 未变，但卡片靠内容自适应会撑到约 145px（5 字组名）—— 这是取舍不是 bug。
  */
 export function TagMatrix({ tags = [], empty = false, onTagClick }) {
   const c = useT();
 
   // 整人无标签 → 整体替换为 PageEmpty（不渲染任何标签卡）
+  // v0.5：不再自带外层 Panel —— TagMatrix 现在只作为「糅合楼层下带」的内容渲染，
+  //   自建 Panel 会与外层 .dp-person-head 形成 Panel 套 Panel（双边框 + 双内边距）。
   if (empty || tags.length === 0) {
     return (
-      <Panel>
-        <PageEmpty
-          compact
-          title="暂无标签"
-          desc="该成员暂无可展示的技能标签。技能标签来自系统数据抽取与人才盘点，无需本人登记。"
-        />
-      </Panel>
+      <PageEmpty
+        compact
+        title="暂无标签"
+        desc="该成员暂无可展示的技能标签。技能标签来自系统数据抽取与人才盘点，无需本人登记。"
+      />
     );
   }
 
@@ -792,8 +805,11 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
           }
         }}
         style={{
+          // v0.5 轻量化三项：padding 10/12 → 8/10；标签名 lineHeight 1.4 → 1.35；
+          //   点赞高 22 → 20（见 TagLike）；档位条高 6 → 5（见 SystemTier）。
+          //   minWidth 132 是**红线**，不动 —— 卡片仍靠内容自适应（见下方合并行注释）。
           minWidth: 132,
-          padding: '10px 12px',
+          padding: '8px 10px',
           flex: '0 1 auto',
           display: 'flex',
           flexDirection: 'column',
@@ -810,7 +826,7 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
                 fontSize: 13,
                 fontWeight: 500,
                 color: c.ink,
-                lineHeight: 1.4,
+                lineHeight: 1.35,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -823,35 +839,42 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
           {/* 点赞：读侧社交信号，置于标签名右端（同一行，卡片宽度不因点赞数变化而跳） */}
           <TagLike baseLikes={t.likes} label={t.tag.label} />
         </div>
-        {/* 分组名独立一行（11px / text3）——横排唯一的「类目上下文」与排序可见性来源。
-            「业务与场景」「协作与流程」等 5 字组名与标签名同行会挤，故固定独立成行。 */}
-        <div style={{ fontSize: 11, color: c.text3, lineHeight: 1.5, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {t.tag.group}
-        </div>
-        <div style={{ marginTop: 4 }}>
-          {/* showCopy={false}：窄卡装不下「暂无系统记录」等档位文案（档位条已结构性表达档位） */}
-          <SystemTier tier={t.evidenceTier} count={t.recentCount} showCopy={false} />
+        {/* v0.5 合并行：档位条（左、不收缩） + 分组名（右、不收缩、**不设 maxWidth**）。
+            ------------------------------------------------------------------
+            为什么必须合并：原「分组名行 + 档位行」两行合计 28.5px，合并后 18.5px，
+              单卡高 70.5 → 54.5px（−22.7%）。
+            为什么两段都必须 flex:0 0 auto 且不设 maxWidth：这是 −22% 能成立的**前置条件**。
+              132px 卡减 padding 后内容宽仅 112px，档位条固定 64px + gap 6 = 70px，
+              留给 11px 分组名只有 42px ≈ 3.8 字 → 「业务与场景」必被截断。
+              改为双侧不收缩后，卡片由内容撑宽（5 字组名 → 约 145px），分组名完整。
+              代价：1440 下每行由约 9 张降到约 8 张 —— 这是取舍，不是 bug。
+            为什么分组名必须仍是 <div> 且 inline font-size:11px：smoke 门⑤用
+              `card.querySelectorAll('div')` 找 11px 元素来证明「类目上下文未丢」。
+            视觉顺序「先档位、再类目」：档位条表达「这个标签有多硬」，是卡内第二重要信息。 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+          <span style={{ display: 'inline-flex', flex: '0 0 auto' }}>
+            {/* showCopy={false}：窄卡装不下「暂无系统记录」等档位文案（档位条已结构性表达档位） */}
+            <SystemTier tier={t.evidenceTier} count={t.recentCount} showCopy={false} />
+          </span>
+          <div style={{ flex: '0 0 auto', fontSize: 11, color: c.text3, lineHeight: 1.5, whiteSpace: 'nowrap' }}>
+            {t.tag.group}
+          </div>
         </div>
       </Panel>
     );
   };
 
   return (
-    <Panel>
-      <PanelHead
-        title="技能标签"
-        desc={`共 ${tags.length} 个标签 · 按技能领域排序`}
-        extra={
-          <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
-            近 12 月记录 {recentTotal} 条
-          </span>
-        }
-      />
-      <div style={{ padding: 16 }}>
-        {/* 横向流式容器：flex-wrap 让短标签（RAG / 埋点）不被 grid 拉宽，提高屏效 */}
-        <div className="dp-tag-floor">{tags.map(tagCard)}</div>
+    <>
+      {/* v0.5：PanelHead 已去（楼层主标题是姓名，再给标签一个标题＝凭空造第二主标题）。
+          改为一行 12px meta 取代标题条 —— 信息不减，只是不再占一个标题层级。
+          原 PanelHead 的 extra「近 12 月记录 N 条」并入本行，不丢读数。 */}
+      <div style={{ fontSize: 12, color: c.text3, lineHeight: 1.6, marginBottom: 10 }}>
+        技能标签 · 共 {tags.length} 个 · 按技能领域排序 · 近 12 月记录 {recentTotal} 条
       </div>
-    </Panel>
+      {/* 横向流式容器：flex-wrap 让短标签（RAG / 埋点）不被 grid 拉宽，提高屏效 */}
+      <div className="dp-tag-floor">{tags.map(tagCard)}</div>
+    </>
   );
 }
 

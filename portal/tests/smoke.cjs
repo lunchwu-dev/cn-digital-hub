@@ -1546,17 +1546,24 @@ async function main() {
        若 TagMatrix 又退回分组结构（groupBar/buckets 复活），desc 会变回「N 组 · …」→ 变红。
        这是 v0.4.3「去分组横排」的核心不变量。 */
     {
-      // 定位标签楼层 Panel 头：标题 div 的文本恰为「技能标签」，其父的下一个 div 即 desc
-      const titleEl = Array.from(doc.querySelectorAll('.dp-card div')).find(
-        (d) => norm(d.textContent) === '技能标签' && d.children.length === 0
+      // v0.5：PanelHead 已去（楼层主标题是姓名），改为定位「下带 meta 行」——
+      //   .dp-floor-tags 内、.dp-tag-floor 之前的那一行 12px 小字。
+      //   文案 =「技能标签 · 共 N 个 · 按技能领域排序 · 近 12 月记录 M 条」。
+      //   ⚠️ 本条仍是**实测门**（读 DOM textContent），不是源码文本正则。
+      //   证伪能力不降：原门证「去分组（无 N 组 · 前缀）」；新门在此基础上**追加**
+      //   「PanelHead extra 的『近 12 月记录 M 条』读数未因去标题条而丢失」。
+      const metaEl = Array.from(doc.querySelectorAll('.dp-floor-tags div')).find(
+        (d) => d.children.length === 0 && norm(d.textContent).includes(norm('技能标签 · 共'))
       );
-      const descEl = titleEl && titleEl.parentElement ? titleEl.parentElement.querySelector('div + div') : null;
-      const desc = descEl ? norm(descEl.textContent) : '';
-      // 注：norm() 抹掉全部空白，故期望值也用「无空格」形式比对
-      if (desc === norm('共 8 个标签 · 按技能领域排序')) {
-        ok('v0.4.3 TagMatrix 去分组：Panel 头 desc =「共 8 个标签 · 按技能领域排序」（无「N 组 ·」前缀）', descEl ? descEl.textContent : '');
+      const meta = metaEl ? norm(metaEl.textContent) : '';
+      const metaOk =
+        meta.includes(norm('技能标签 · 共 8 个 · 按技能领域排序')) &&
+        meta.includes(norm('近 12 月记录')) &&
+        !meta.includes(norm('组 ·'));
+      if (metaOk) {
+        ok('v0.5 TagMatrix 去分组：下带 meta 行 =「技能标签 · 共 8 个 · 按技能领域排序 · 近 12 月记录 M 条」（无「N 组 ·」前缀，且原 PanelHead extra 读数未丢）', metaEl ? metaEl.textContent : '');
       } else {
-        fail('v0.4.3 TagMatrix desc 应为「共 8 个标签 · 按技能领域排序」', `实得 desc=${JSON.stringify(descEl ? descEl.textContent : '')}`);
+        fail('v0.5 TagMatrix meta 行', `实得 meta=${JSON.stringify(metaEl ? metaEl.textContent : '')}`);
       }
       // 该人主页不得出现空组名（空组在个人画像里是纯噪音）；卡内只显示该人标签所属组名
       const emptyGroupLeak = ['AI 与算法', '平台与安全'].filter((g) => pageHas(doc, g));
@@ -1721,49 +1728,78 @@ async function main() {
   await settle(560);
   {
     // ① 页面上「主标签」字样 0 次（正文级，排除脚本/面板）
-    const leak = /主标签/.test(pageText(doc));
-    if (!leak) ok('v0.4.2 门①「主标签」字样屏上 0 次');
-    else fail('v0.4.2 门①「主标签」字样应为 0', pageText(doc).match(/.{0,12}主标签.{0,12}/)?.[0]);
+    // ★ v0.5.1 修（评审 Q5-P2）：补**正向前提**。原本只写 `if (!leak) ok(...)`，
+    //   一旦页面没渲染/选择器失效 → 正文为空 → 「0 命中」照样通过，属空转断言。
+    //   现在先证明页面真的渲出来了（正文长度 + 含「技能标签」），再断言缺失。
+    const mzPageText = pageText(doc);
+    const mzRendered = mzPageText.length > 200 && mzPageText.includes('技能标签');
+    const leak = /主标签/.test(mzPageText);
+    if (!mzRendered) {
+      fail('v0.4.2 门① 页面未渲染，无法判定「主标签」是否 0 命中', `正文 ${mzPageText.length} 字符，含「技能标签」=${mzPageText.includes('技能标签')}`);
+    } else if (!leak) {
+      ok('v0.4.2 门①「主标签」字样屏上 0 次（正向前提：正文 ' + mzPageText.length + ' 字符且含「技能标签」）');
+    } else {
+      fail('v0.4.2 门①「主标签」字样应为 0', mzPageText.match(/.{0,12}主标签.{0,12}/)?.[0]);
+    }
 
-    /* ② 恰好四模块（v0.4.3 楼层 1→3 重排后）。DOM 事实（本轮**实测 dump**，非抄规范）：
-         .dp-shell 子树内 .dp-card 共 12 个 = hero(1) + 技能标签 Panel(1) + 工作 Panel(1)
-                                        + 知识贡献 Panel(1) + TagMatrix 内标签卡 8（位于 .dp-tag-floor）。
+    /* ② 恰好三模块（v0.5 楼层糅合后）。DOM 事实（本轮**实测 dump**，非抄旧值）：
+         .dp-shell 子树内 .dp-card 共 11 个 = 糅合层(1：hero+技能标签并成一张) + 工作(1) + 贡献(1)
+                                        + TagMatrix 内标签卡 8（位于 .dp-tag-floor）。
          故「模块级 Panel」= .dp-shell 内所有 .dp-card 中，**排除 .dp-tag-floor 内的标签卡**
-         与**排除被其它 .dp-card 嵌套的卡**，应恰 4 个。
-         最怕的错法：hero 主标签块复活（→5），或某模块被删（→3）。 */
+         与**排除被其它 .dp-card 嵌套的卡**，应恰 3 个。
+         最怕的错法：糅合层没合（→4，hero 与标签各成一张卡）；或某模块被删（→2）。
+         ⚠️ 本门证伪「糅合没做」的强度**与原门证伪「hero 复活」等价**——只是期望值由 4 变 3。 */
     const shell0 = doc.querySelector('.dp-shell');
     const moduleCards = shell0
       ? Array.from(shell0.querySelectorAll('.dp-card')).filter(
           (el) => !el.closest('.dp-tag-floor') && !(el.parentElement && el.parentElement.closest('.dp-card'))
         )
       : [];
-    if (moduleCards.length === 4) ok('v0.4.3 门② 个人主页模块级 Panel 恰 4 个（头像+信息 / 技能标签 / 近期工作内容 / 近期知识贡献）');
-    else fail('v0.4.3 门② 模块级 Panel 应恰 4 个', `实得 ${moduleCards.length}`);
+    if (moduleCards.length === 3) ok('v0.5 门② 个人主页模块级 Panel 恰 3 个（糅合层[身份+技能标签] / 近期工作内容 / 近期知识贡献）');
+    else fail('v0.5 门② 模块级 Panel 应恰 3 个', `实得 ${moduleCards.length}（糅合失败会是 4，模块被删会是 2）`);
 
-    /* ③ 楼层结构（实测门，守住「技能标签在 hero 之后、工作/贡献在最后」的用户需求）：
-       .dp-shell 的直接子节点顺序 = [breadcrumb, hero(.dp-card.dp-person-head),
-       .dp-floor-tags, .dp-grid.dp-g-duo]。
-       楼层 2 必须「紧邻」楼层 1（hero 之后第一个楼层容器是 .dp-floor-tags）；
-       楼层 3 必须是最后一个楼层容器。 */
+    /* ③ 楼层结构（v0.5 实测门，守住用户「技能标签与个人信息糅合成一个大的楼层」+
+       「近期工作内容独占楼层」两条需求）：
+       .dp-shell 直接子节点顺序 = [breadcrumb, 糅合层(.dp-person-head.dp-floor-merged),
+       .dp-floor-work, .dp-floor-contrib]（4 个）。
+       三条不变量（任一条不成立即红）：
+         ① 糅合层**同时**含 .dp-person-head-main（上带身份）与 .dp-floor-tags（下带标签）
+            —— 这就是「糅合」的判据；v0.4.3 时这是两个独立楼层。
+         ② .dp-floor-tags 不再是 .dp-shell 的直接子节点（必须嵌在 .dp-person-head 内）。
+         ③ 工作/贡献各自独占通栏：.dp-g-duo 从 DOM 移除（0 命中）。
+       另：两带之间必须是 1px 实线分隔（不是留白）——纯留白会被读成「两张独立卡」。 */
     {
       const shellKids = shell0 ? Array.from(shell0.children) : [];
       const heroIdx = shellKids.findIndex((e) => e.classList.contains('dp-person-head'));
       const tagsIdx = shellKids.findIndex((e) => e.classList.contains('dp-floor-tags'));
       const duoIdx = shellKids.findIndex((e) => e.classList.contains('dp-g-duo'));
-      const okOrder = heroIdx >= 0 && tagsIdx === heroIdx + 1 && duoIdx > tagsIdx;
+      const workIdx = shellKids.findIndex((e) => e.classList.contains('dp-floor-work'));
+      const contribIdx = shellKids.findIndex((e) => e.classList.contains('dp-floor-contrib'));
+      const okOrder = heroIdx === 1 && tagsIdx === -1 && duoIdx === -1 && workIdx === 2 && contribIdx === 3;
       if (okOrder) {
-        ok('v0.4.3 楼层顺序：hero → 技能标签楼层 → 工作/贡献双栏（技能标签紧邻 hero 之后）', `hero@${heroIdx} tags@${tagsIdx} duo@${duoIdx}`);
+        ok('v0.5 楼层顺序：糅合层 → 近期工作内容(独占) → 近期知识贡献(独占)', `merged@${heroIdx} work@${workIdx} contrib@${contribIdx}`);
       } else {
-        fail('v0.4.3 楼层顺序', `hero@${heroIdx} tags@${tagsIdx} duo@${duoIdx}（期望 tags 紧邻 hero、duo 在最后）`);
+        fail('v0.5 楼层顺序', `merged@${heroIdx} tags@${tagsIdx} duo@${duoIdx} work@${workIdx} contrib@${contribIdx}（期望 merged@1 work@2 contrib@3，且 tags/duo 不作为直接子节点）`);
       }
-      // 技能标签确为独立通栏楼层（.dp-floor-tags 不能嵌在 .dp-g-duo 内）
-      const tagsInDuo = doc.querySelector('.dp-g-duo .dp-floor-tags');
-      if (!tagsInDuo) ok('   ↳ 技能标签楼层独立于双栏之外（未嵌在 .dp-g-duo 内）');
-      else fail('   ↳ 技能标签楼层独立性', '.dp-floor-tags 出现在 .dp-g-duo 内');
-      // 楼层 3 使用 .dp-g-duo，且含 2 个子栏；旧 .dp-g-profile 已移出使用点
-      const duo = doc.querySelector('.dp-g-duo');
-      if (duo && duo.children.length === 2) ok('   ↳ 楼层 3 为 .dp-g-duo 双栏（2 个子栏）');
-      else fail('   ↳ 楼层 3 .dp-g-duo 双栏', duo ? `子栏数=${duo.children.length}` : '未找到 .dp-g-duo');
+      // ① 糅合判据：同一张卡里同时有上带（身份）与下带（标签）
+      const heroEl = doc.querySelector('.dp-person-head');
+      const hasMain = !!(heroEl && heroEl.querySelector('.dp-person-head-main'));
+      const hasTags = !!(heroEl && heroEl.querySelector('.dp-floor-tags'));
+      if (hasMain && hasTags) ok('   ↳ 糅合层同卡含上带 .dp-person-head-main 与下带 .dp-floor-tags');
+      else fail('   ↳ 糅合层结构', `hasMain=${hasMain} hasTags=${hasTags}（两带必须同属一张 .dp-card）`);
+      // 两带之间必须是 1px 实线，不是留白
+      const tagsBand = doc.querySelector('.dp-person-head .dp-floor-tags');
+      const bt = tagsBand ? win.getComputedStyle(tagsBand).borderTopWidth : null;
+      const inlineBt = tagsBand ? tagsBand.getAttribute('style') || '' : '';
+      const btOk = (bt && parseFloat(bt) > 0) || /border-top\s*:/i.test(inlineBt);
+      if (btOk) ok('   ↳ 两带之间为实线分隔（非留白）', `borderTopWidth=${bt}`);
+      else fail('   ↳ 两带分隔线', `borderTopWidth=${bt}（必须 >0：留白会被读成两张独立卡）`);
+      // ② .dp-floor-tags 不再作为楼层直接子节点（上一条 okOrder 已含此判据，此处给独立证据）
+      if (tagsIdx === -1 && hasTags) ok('   ↳ .dp-floor-tags 已内嵌进糅合层（不再独立成层）');
+      else fail('   ↳ .dp-floor-tags 归属', `tagsIdx=${tagsIdx} hasTags=${hasTags}`);
+      // ③ .dp-g-duo 已从 DOM 移除；.dp-g-profile 仍应 0 命中（考古定义保留在 CSS，DOM 不出现）
+      if (!doc.querySelector('.dp-g-duo')) ok('   ↳ .dp-g-duo 已从 DOM 移除（工作/贡献各自独占通栏）');
+      else fail('   ↳ .dp-g-duo 应 0 命中', 'DOM 中仍存在 .dp-g-duo');
       if (!doc.querySelector('.dp-g-profile')) ok('   ↳ .dp-g-profile 已移出使用点（DOM 0 命中）');
       else fail('   ↳ .dp-g-profile 应 0 命中', 'DOM 中仍存在 .dp-g-profile');
     }
@@ -1799,41 +1835,148 @@ async function main() {
       else fail('v0.4.3 周敏「设计系统」标签存在性', `hasDS=${hasDesignSystem} len=${labels.length}`);
     }
 
-    /* ⑥ 工作内容 Panel 存在，desc 逐字为规定文案 */
+    /* ⑥ 工作楼层 Panel 存在，desc 逐字为 v0.5 规定文案 */
     {
       const workPanel = doc.querySelector('.dp-floor-work');
-      const descOk = workPanel && norm(workPanel.textContent).includes(norm('来自 Jira 的负责人字段 · 当前至未来 1 个月'));
+      const descOk = workPanel && norm(workPanel.textContent).includes(norm('来自 Jira 的负责人字段 · 未来 8 周资源占用'));
       const titleOk = workPanel && norm(workPanel.textContent).includes(norm('近期工作内容'));
-      if (titleOk && descOk) ok('v0.4.3 近期工作内容 Panel 存在，desc 逐字为「来自 Jira 的负责人字段 · 当前至未来 1 个月」');
-      else fail('v0.4.3 近期工作内容 Panel', `title=${!!titleOk} desc=${!!descOk}`);
+      if (titleOk && descOk) ok('v0.5 近期工作内容 Panel 存在，desc 逐字为「来自 Jira 的负责人字段 · 未来 8 周资源占用」');
+      else fail('v0.5 近期工作内容 Panel', `title=${!!titleOk} desc=${!!descOk}`);
     }
 
-    /* ⑥b 任务行上限 5 + extra 文案分档（周敏 total=5 → 恰好 5 行、extra「5 条」；
-       陈思远 siyuan.chen total=7 items=5 → 显示近 5、extra「7 条 · 显示近 5」）。
-       实测数据见 outputs/_v043_data_probe1.txt。 */
+    /* ⑥b v0.5 甘特骨架**实测门**（取代 v0.4.3 的「任务行上限 5 + extra 分档」文本门）。
+       ------------------------------------------------------------------
+       旧门测的是「列表 + 截断 5 条」；v0.5 用户要求改成「8 周资源占用甘特、独占楼层」，
+       故旧语义已不存在。**等价强度的新门**（同为读 DOM 结果的实测门）：
+         ① 表头 9 格（左上角位 + 8 周），8 个周标签 W1..W8 与 8 个起始日 09/14..11/02 全在；
+            且含「本周」标记（本周 = 含 2026-09-17 的那一周 = W1，**不读系统时间**）。
+         ② 任务行数 = 该人**全部**在办且与 8 周有交集的任务数（**不截断**）：
+            周敏 7 行（旧门期望 5 行 —— 差异正是「不截断」的证据）；
+            陈思远 9 行（切页验证，证伪把 7 写死）。
+         ③ 每行恰 8 个周格（`rows × 8 = .dp-gantt-cell 总数`），且行首格数 = 任务行数 + 1（总占用行）。
+       为何比旧门更强：旧门只数「5 行」这个数字，任何 5 行的列表都能过；
+         新门同时锁住①列数与列标签、②不截断的行数、③格数与行首的算术一致性。 */
     {
-      const workRows = () => Array.from(doc.querySelectorAll('.dp-floor-work div'))
-        .filter((el) => /padding:\s*10px 12px/.test(el.getAttribute('style') || '')).length;
-      const workPanelText = () => {
-        const p = doc.querySelector('.dp-floor-work');
+      const workPanel = () => doc.querySelector('.dp-floor-work');
+      const headCells = () => Array.from(doc.querySelectorAll('.dp-floor-work .dp-gantt-head'));
+      const cellCount = () => doc.querySelectorAll('.dp-floor-work .dp-gantt-cell').length;
+      const headCount = () => doc.querySelectorAll('.dp-floor-work .dp-gantt-rowhead').length;
+      const panelText = () => {
+        const p = workPanel();
         return p ? norm(p.textContent) : '';
       };
-      // 周敏（当前页）：恰 5 行 + extra「5 条」（无「显示近 5」后缀）
-      const mzRows = workRows();
-      const mzText = workPanelText();
-      const mzExtraOk = mzText.includes(norm('5 条')) && !mzText.includes(norm('显示近 5'));
-      if (mzRows === 5 && mzExtraOk) ok('v0.4.3 工作行上限=5 且 extra 分档（周敏 total=5 → 5 行 +「5 条」，无「显示近 5」）', `${mzRows} 行`);
-      else fail('v0.4.3 工作行上限/extra（周敏）', `rows=${mzRows} extra「5 条」=${mzText.includes(norm('5 条'))} 误含「显示近 5」=${mzText.includes(norm('显示近 5'))}`);
 
-      // 陈思远 >5 样本：切页验证「7 条 · 显示近 5」+ 5 行
+      // —— ① 表头骨架（周敏页）——
+      const hc = headCells();
+      const headText = hc.map((e) => norm(e.textContent)).join('|');
+      const weeksOk = ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8'].every((l) => headText.includes(l));
+      const datesOk = ['09/14', '09/21', '09/28', '10/05', '10/12', '10/19', '10/26', '11/02'].every((d) => headText.includes(d));
+      const curOk = headText.includes(norm('本周'));
+      if (hc.length === 9 && weeksOk && datesOk && curOk) {
+        ok('v0.5 甘特表头 9 格（任务位 + 8 周），W1..W8 与 09/14..11/02 全在，且含「本周」标记', `${hc.length} 格`);
+      } else {
+        fail('v0.5 甘特表头', `格数=${hc.length}（期望 9）weeks=${weeksOk} dates=${datesOk} 本周=${curOk}`);
+      }
+
+      // —— ② 周敏：7 行（不截断，且区间与窗口有交集的逾期任务在内）——
+      const mzRows = cellCount() / 8;
+      const mzHead = headCount();
+      const mzText = panelText();
+      // v0.5.1：extra 文案由「N 项在办」改为「N 项占用」——计数口径是
+      //   inWindow.length（与 8 周有交集的行），而「在办」指全量请办任务数，
+      //   两者在陈思远页会不等（9 在办 vs 8 占用），沿用旧文案就会自相矛盾。
+      const mzExtraOk = mzText.includes(norm('7 项占用'));
+      const mzArithOk = cellCount() % 8 === 0 && mzHead === mzRows + 1;
+      if (Number.isInteger(mzRows) && mzRows === 7 && mzExtraOk && mzArithOk) {
+        ok('v0.5 甘特不截断 + extra（周敏：7 项占用 → 7 任务行 × 8 格；行首 8 = 7 任务 + 1 总占用）', `${mzRows} 行 / ${cellCount()} 格`);
+      } else {
+        fail('v0.5 甘特行数/extra（周敏）', `rows=${mzRows} cells=${cellCount()} rowheads=${mzHead} 含「7 项占用」=${mzExtraOk} 算术一致=${mzArithOk}`);
+      }
+
+      // —— ③ 陈思远 siyuan.chen：8 行（切页验证，证伪把 7 写死）——
+      //   v0.5.1 口径变更：只渲染**与 8 周有交集**的行（occ.inWindow）。
+      //   数据实测：他全量在办 9 条，其中 MEM-2160（2026-09-05~09-10）整段落在窗口
+      //   开始日 2026-09-14 之前 → weekIdx=[] → 不进表，故 9 → 8。
+      //   这条同时是「零交出行不得渲成 8 格全空行」的回归门（返修前会渲出 9 行，其中
+      //   1 行有任务名但 8 格全空 —— 独立评审认定为像渲染 bug 且污染计数）。
       await navigate(win, '#/workspace/people/siyuan.chen');
       await settle(560);
-      const scRows = workRows();
-      const scText = workPanelText();
-      if (scRows === 5 && scText.includes(norm('7 条 · 显示近 5'))) {
-        ok('v0.4.3 >5 样本（陈思远 total=7）→ 5 行 + extra「7 条 · 显示近 5」', `${scRows} 行`);
+      const scRows = cellCount() / 8;
+      const scText = panelText();
+      if (scRows === 8 && scText.includes(norm('8 项占用'))) {
+        ok('v0.5 甘特行数随人变化（陈思远：8 项占用 → 8 行，证伪硬编码 7）', `${scRows} 行`);
       } else {
-        fail('v0.4.3 工作行上限/extra（陈思远 total=7）', `rows=${scRows} 含「7 条 · 显示近 5」=${scText.includes(norm('7 条 · 显示近 5'))}`);
+        fail('v0.5 甘特行数（陈思远）', `rows=${scRows} 含「8 项占用」=${scText.includes(norm('8 项占用'))}`);
+      }
+      // —— ③-2 v0.5.1 新增实测门：零交出行既不上表、也不许被静默丢弃 ——
+      {
+        const cells = Array.from(doc.querySelectorAll('.dp-floor-work .dp-gantt-cell'));
+        let emptyRows = 0;
+        for (let r = 0; r + 8 <= cells.length; r += 8) {
+          if (!cells.slice(r, r + 8).some((el) => el.classList.contains('is-on'))) emptyRows += 1;
+        }
+        const memGone = !scText.includes(norm('MEM-2160'));
+        const noted = scText.includes(norm('另有 1 项在办任务的区间结束于窗口开始日'));
+        if (emptyRows === 0 && memGone && noted) {
+          ok('v0.5.1 零交出行不上表且不静默丢弃（陈思远：无 8 格全空行、MEM-2160 不在表内、明示「另有 1 项…未列入上表」）', `空行=${emptyRows}`);
+        } else {
+          fail('v0.5.1 零交出行处置（陈思远）', `8格全空行=${emptyRows} MEM-2160 已移出=${memGone} 明示排除条数=${noted}`);
+        }
+        // 数据层不变量：rows（全量）与 inWindow（有交集）的分区**不得让 totals 漂移**。
+        //   两侧分别独立求和，再与 totals 对拍 —— 这是「分区只影响渲染、不影响口径」的唯一证据。
+        const occSC = MOCK.getPersonOccupancy('siyuan.chen');
+        const fromAll = occSC.weeks.map((w) => occSC.rows.filter((r) => r.weekIdx.includes(w.i)).length);
+        const fromWin = occSC.weeks.map((w) => occSC.inWindow.filter((r) => r.weekIdx.includes(w.i)).length);
+        const partOk =
+          occSC.rows.length === 9 &&
+          occSC.inWindow.length === 8 &&
+          occSC.outside === 1 &&
+          occSC.inWindow.every((r) => r.weekIdx.length > 0) &&
+          JSON.stringify(fromAll) === JSON.stringify(fromWin) &&
+          JSON.stringify(fromAll) === JSON.stringify(occSC.totals.map((t) => t.count));
+        if (partOk) {
+          ok('   ↳ 分区不变量：rows=9 / inWindow=8 / outside=1，且 inWindow 与 rows 各自求得的周计数相同、并与 totals 逐位一致', JSON.stringify(fromAll));
+        } else {
+          fail('   ↳ 分区不变量（陈思远）', `rows=${occSC.rows.length} inWindow=${occSC.inWindow.length} outside=${occSC.outside} fromAll=${JSON.stringify(fromAll)} fromWin=${JSON.stringify(fromWin)} totals=${JSON.stringify(occSC.totals.map((t) => t.count))}`);
+        }
+      }
+      /* v0.5.1 补门 —— 起因是「M7 变异恒不变红 = 空转断言」这个实测发现：
+         v0.5 把工作楼层换成甘特后，getPersonWork 只剩「被 getPersonProfile 返回」一个
+         出口（profile.work），**页面不再渲染它，也没有任何门看它**。
+         于是原 M7（把 getPersonWork 的过滤条件再加 `&& status !== 'blocked'`）与任何
+         断言彻底脱钩 —— 它改的是没人读的代码，永远不可能让测试变红。
+         两种收尾：要么删掉这个死导出，要么给它补门。此处选**补门**（保留 v0.4.3
+         「blocked 不上屏但整行照常渲染」这条口径的可审计性），口径取最强的那条：
+         **未完结任务一条都不许被丢**。
+         ⚠️ 用 total 而不是 items 比较：items 被 slice(0,5) 截断，用 items 会让本门
+            在「第 6 条被丢」时依然通过（正是 M7 那种假绿）。
+         M7 加了 `&& i.status !== 'blocked'` 后，total 会少掉 blocked 的条数 → 变红。 */
+      {
+        const wkey = 'min.zhou';
+        const T = MOCK.WORK_WINDOW_AS_OF;
+        const TEND = MOCK.WORK_WINDOW_END;
+        const rawOpen = MOCK.JIRA_ISSUES.filter((i) => i.assigneeId === wkey && i.status !== 'done');
+        // ⚠️ getPersonWork 的口径是**一个月窗口**：due ∈ [AS_OF, WINDOW_END] ∪ 逾期，
+        //   所以 due > WINDOW_END 的任务本来就不该出现（v0.5 为甘特 W6~W8 新增的样本
+        //   due 都 ≥ 2026-10-19，正属此类）。期望值必须按同一口径从原始数据推出，
+        //   而不是写「未完结条数」——第一版就是把口径写错，被本门当场抓住（7 vs 5）。
+        const inWinRaw = rawOpen.filter((i) => i.due >= T && i.due <= TEND);
+        const overdueRaw = rawOpen.filter((i) => i.due < T);
+        const expected = inWinRaw.length + overdueRaw.length;
+        const blockedInScope = [...inWinRaw, ...overdueRaw].filter((i) => i.status === 'blocked');
+        const w = MOCK.getPersonWork(wkey);
+        const sameTotal = !!w && w.total === expected;
+        if (expected > 0 && blockedInScope.length > 0 && sameTotal) {
+          ok(
+            `   ↳ 数据层：getPersonWork 在其一个月窗口内一条未完结任务都没丢（含 ${blockedInScope.length} 条 blocked），total=${w.total} = 窗口内 ${inWinRaw.length} + 逾期 ${overdueRaw.length}`,
+            blockedInScope.map((i) => i.key).join(',')
+          );
+        } else {
+          fail(
+            '   ↳ getPersonWork 窗口内未完结任务守恒',
+            `期望 total=${expected}（窗口内 ${inWinRaw.length} + 逾期 ${overdueRaw.length}）实得 ${w && w.total}；窗口内 blocked=${blockedInScope.length}`
+          );
+        }
       }
       // 回到周敏，供后续 ⑦/⑧/⑨ 门使用
       await navigate(win, '#/workspace/people/min.zhou');
@@ -1842,19 +1985,18 @@ async function main() {
 
     /* ⑦ blocked 任务整行照常渲染，仅状态位留空（证伪「整行被吞」）——
        样本：周敏 DS-3121（status:'blocked'）。
-       判据：单号 DS-3121 上屏 + 其所在行仍有任务名/项目/日期，但该行**无状态 Pill 文案**
+       v0.5 锚点由「padding:10px 12px 的列表行」改为「.dp-gantt-rowhead 行首格」。
+       判据：单号 DS-3121 上屏 + 该行仍有任务名/项目/交付日，但**无状态 Pill 文案**
        （待办/进行中/待评审 三者皆不出现于该行）。 */
     {
-      const workPanel = doc.querySelector('.dp-floor-work');
       const rowHas = (key) => {
-        if (!workPanel) return null;
-        return Array.from(workPanel.querySelectorAll('div')).find(
-          (el) => /padding:\s*10px 12px/.test(el.getAttribute('style') || '') && norm(el.textContent).includes(norm(key))
+        return Array.from(doc.querySelectorAll('.dp-floor-work .dp-gantt-rowhead')).find(
+          (el) => norm(el.textContent).includes(norm(key))
         );
       };
       const blockedRow = rowHas('DS-3121');
       if (!blockedRow) {
-        fail('v0.4.3 blocked 整行仍渲染', '未找到 DS-3121 所在行（blocked 行可能被整行吞掉）');
+        fail('v0.5 blocked 整行仍渲染', '未找到 DS-3121 所在行首格（blocked 行可能被整行吞掉）');
       } else {
         const txt = norm(blockedRow.textContent);
         const hasTitle = txt.includes(norm('设计规范文档站改版'));
@@ -1862,56 +2004,192 @@ async function main() {
         const hasDue = txt.includes(norm('2026-10-09'));
         const hasStatusPill = /待办|进行中|待评审/.test(txt);
         if (hasTitle && hasProject && hasDue && !hasStatusPill) {
-          ok('v0.4.3 blocked 任务整行仍渲染（单号/任务名/项目/日期在），仅状态位留空', 'DS-3121');
+          ok('v0.5 blocked 任务整行仍渲染（单号/任务名/项目/交付日在），仅状态位留空', 'DS-3121');
         } else {
-          fail('v0.4.3 blocked 整行渲染/状态留空', `title=${hasTitle} project=${hasProject} due=${hasDue} statusPill=${hasStatusPill}`);
+          fail('v0.5 blocked 整行渲染/状态留空', `title=${hasTitle} project=${hasProject} due=${hasDue} statusPill=${hasStatusPill}`);
         }
       }
     }
 
-    /* ⑧ 逾期任务：仅日期数字染色（c.warningText #8A5200 = rgb(138,82,0)），整行背景未被染色。
-       样本：周敏 DS-3080（due 2026-09-15 < 2026-09-17）。 */
+    /* ⑧ 逾期任务：**语义与 v0.4.3 相反**（有意偏离 v05-design-tokens §0-5，见 PersonProfile 文件头）
+       ------------------------------------------------------------------
+       v0.4.3：逾期任务「仅日期数字染 c.warningText」，以此标记逾期。
+       v0.5  ：逾期但未完结的任务**照常进甘特**（它确实还在占用这个人），但**不做任何标记**——
+               无逾期色、无图标、无「逾期」二字。交付日恒为 c.text3。
+       样本：周敏 DS-3080（due 2026-09-15 < 2026-09-17）。
+       本门**同时**锁住两件事（比 v0.4.3 更强，不是放松）：
+         A. DS-3080 **必须出现在甘特中**（行首格含单号 + 任务名）——证伪「被藏掉」；
+         B. 该行交付日色 = c.text3，且整个工作楼层内**没有任何 .dp-num 染 warning 色**——
+            证伪「旧染色逻辑残留」，也证伪「逾期被差异化处理」。
+       故：无论「藏掉逾期」还是「给逾期上色」两种错法，都会红。 */
     {
-      const workPanel = doc.querySelector('.dp-floor-work');
-      const row = workPanel
-        ? Array.from(workPanel.querySelectorAll('div')).find(
-            (el) => /padding:\s*10px 12px/.test(el.getAttribute('style') || '') && norm(el.textContent).includes(norm('DS-3080'))
-          )
-        : null;
+      const WARNING_TEXT = 'rgb(138, 82, 0)'; // c.warningText #8A5200
+      const WARNING_ALT = 'rgb(232, 137, 12)'; // c.warning #E8890C（旧实现的备选，一并禁）
+      const isWarning = (col) => col === WARNING_TEXT || col === WARNING_ALT;
+
+      const row = Array.from(doc.querySelectorAll('.dp-floor-work .dp-gantt-rowhead')).find(
+        (el) => norm(el.textContent).includes(norm('DS-3080'))
+      );
       if (!row) {
-        fail('v0.4.3 逾期日期染色', '未找到 DS-3080 所在行');
+        fail('v0.5 逾期任务仍进甘特', '未找到 DS-3080 所在行（逾期任务被藏掉 = 工作量被低估）');
       } else {
-        // 日期数字 span（.dp-num，文本 = '2026-09-15'）的计算色应为 warningText
-        const dateEl = Array.from(row.querySelectorAll('span')).find((s) => /2026-09-15/.test(norm(s.textContent)));
-        const dateColor = dateEl ? win.getComputedStyle(dateEl).color : null;
-        const overdueOk = /138,\s*82,\s*0/.test(dateColor || '') || /232,\s*137,\s*12/.test(dateColor || '');
-        // 行容器自身背景必须透明/无背景（未被整行染色）
-        const rowBg = win.getComputedStyle(row).backgroundColor;
-        const bgClean = /rgba?\(0,\s*0,\s*0,\s*0\)|transparent/.test(rowBg);
-        const rowBgInline = row.getAttribute('style') || '';
-        const noRowBgInline = !/background/i.test(rowBgInline);
-        if (overdueOk && bgClean && noRowBgInline) {
-          ok('v0.4.3 逾期仅日期数字染色（c.warningText），整行未染背景', `dateColor=${dateColor} rowBg=${rowBg}`);
+        const txt = norm(row.textContent);
+        const hasKey = txt.includes(norm('DS-3080'));
+        const hasTitle = txt.includes(norm('图标线性化收尾'));
+        const dueSpan = Array.from(row.querySelectorAll('span')).find((s) => /2026-09-15/.test(norm(s.textContent)));
+        const dueColor = dueSpan ? win.getComputedStyle(dueSpan).color : null;
+        // 整个工作楼层：任何 .dp-num 都不得是 warning 色（旧实现会给逾期日期染色）
+        const warned = Array.from(doc.querySelectorAll('.dp-floor-work .dp-num')).filter((el) =>
+          isWarning(win.getComputedStyle(el).color)
+        );
+        const dueNeutral = dueColor && !isWarning(dueColor);
+        if (hasKey && hasTitle && dueNeutral && warned.length === 0) {
+          ok('v0.5 逾期任务照常进甘特且零标记（DS-3080 在，交付日恒 c.text3，全楼层 0 个 warning 色 .dp-num）', `dueColor=${dueColor}`);
         } else {
-          fail('v0.4.3 逾期日期染色/行背景', `overdueOk=${overdueOk} dateColor=${dateColor} rowBg=${rowBg} rowBgInline=${noRowBgInline}`);
+          fail('v0.5 逾期任务零标记', `hasKey=${hasKey} hasTitle=${hasTitle} dueColor=${dueColor} warningNums=${warned.length}`);
         }
       }
     }
 
-    /* ⑨ 任务行整块不可点：无 role / 无 tabindex / cursor 非 pointer / 无 <a href>（规范 §5 第 7 条）。 */
+    /* ⑨ 任务行/任务条整块不可点：无 role / 无 tabindex / cursor 非 pointer / 无 <a href>（规范 §5 第 7 条）。
+       v0.5 锚点：.dp-gantt-rowhead（行首格） + .dp-gantt-cell（周格）。 */
     {
-      const workPanel = doc.querySelector('.dp-floor-work');
-      const rows = workPanel
-        ? Array.from(workPanel.querySelectorAll('div')).filter((el) => /padding:\s*10px 12px/.test(el.getAttribute('style') || ''))
-        : [];
-      const badRole = rows.filter((r) => r.getAttribute('role'));
-      const badTab = rows.filter((r) => r.hasAttribute('tabindex'));
-      const badCursor = rows.filter((r) => win.getComputedStyle(r).cursor === 'pointer');
-      const anchors = workPanel ? workPanel.querySelectorAll('a[href]') : [];
-      if (rows.length > 0 && badRole.length === 0 && badTab.length === 0 && badCursor.length === 0 && anchors.length === 0) {
-        ok('v0.4.3 任务行整块不可点（无 role/tabindex/cursor:pointer/链接）', `${rows.length} 行`);
+      const nodes = [
+        ...Array.from(doc.querySelectorAll('.dp-floor-work .dp-gantt-rowhead')),
+        ...Array.from(doc.querySelectorAll('.dp-floor-work .dp-gantt-cell')),
+      ];
+      const badRole = nodes.filter((r) => r.getAttribute('role'));
+      const badTab = nodes.filter((r) => r.hasAttribute('tabindex'));
+      const badCursor = nodes.filter((r) => win.getComputedStyle(r).cursor === 'pointer');
+      const anchors = doc.querySelectorAll('.dp-floor-work a[href]');
+      if (nodes.length > 0 && badRole.length === 0 && badTab.length === 0 && badCursor.length === 0 && anchors.length === 0) {
+        ok('v0.5 甘特行/周格整块不可点（无 role/tabindex/cursor:pointer/链接）', `${nodes.length} 个节点`);
       } else {
-        fail('v0.4.3 任务行不可点', `rows=${rows.length} role=${badRole.length} tabindex=${badTab.length} cursorPointer=${badCursor.length} a[href]=${anchors.length}`);
+        fail('v0.5 甘特不可点', `nodes=${nodes.length} role=${badRole.length} tabindex=${badTab.length} cursorPointer=${badCursor.length} a[href]=${anchors.length}`);
+      }
+    }
+
+    /* ⑩ v0.5 新增实测门：跨周任务的**连续色带**（这是用户在甘特这条需求里的核心诉求，
+       也是旧列表形态下根本不存在的东西，故必须有独立门守住）。
+       ------------------------------------------------------------------
+       样本：周敏 DS-3102，start 2026-09-15 / due 2026-09-22 → 与 W1(09-14~09-20)、
+         W2(09-21~09-27) 都有交集 → weekIdx = [0, 1]，必须**连成一条带**。
+       判据（逐格读 DOM class，非源码文本）：
+         · 该行的 8 个周格里，恰第 0、1 格带 is-on（其余 6 格不带）；
+         · 第 0 格带 is-band-start、第 1 格带 is-band-end（首末格才有圆角）；
+         · 第 1 格**不带** is-band-start（中间/末端格不得有左圆角，否则色带被切成两段）。
+       注：颜色（var(--dp-gantt-bar)）在 jsdom 下无法解析 CSS 变量，故色值断言放在
+         真实 Chrome 几何探针 tests/_geom_gantt.cjs 里（见 mutation 的 geom-gantt 门）。 */
+    {
+      const gantt = doc.querySelector('.dp-floor-work .dp-gantt');
+      const kids = gantt ? Array.from(gantt.children) : [];
+      const ri = kids.findIndex(
+        (e) => e.classList.contains('dp-gantt-rowhead') && norm(e.textContent).includes(norm('DS-3102'))
+      );
+      const cells = ri >= 0 ? kids.slice(ri + 1, ri + 9) : [];
+      if (cells.length !== 8) {
+        fail('v0.5 跨周连续色带（DS-3102）', `未取到 8 个周格（ri=${ri} len=${cells.length}）`);
+      } else {
+        const onIdx = cells.map((el, i) => (el.classList.contains('is-on') ? i : -1)).filter((i) => i >= 0);
+        const segOk =
+          onIdx.length === 2 &&
+          onIdx[0] === 0 &&
+          onIdx[1] === 1 &&
+          cells[0].classList.contains('is-band-start') &&
+          cells[1].classList.contains('is-band-end') &&
+          !cells[1].classList.contains('is-band-start') &&
+          !cells[0].classList.contains('is-band-end');
+        if (segOk) {
+          ok('v0.5 跨周连续色带：DS-3102 的 W1+W2 连成一条带（首格 is-band-start、末格 is-band-end、中间无额外圆角）', `on=${JSON.stringify(onIdx)}`);
+        } else {
+          fail('v0.5 跨周连续色带（DS-3102）', `on=${JSON.stringify(onIdx)} start0=${cells[0].classList.contains('is-band-start')} end1=${cells[1].classList.contains('is-band-end')} 误给start1=${cells[1].classList.contains('is-band-start')}`);
+        }
+      }
+    }
+
+    /* ⑪ v0.5 新增实测门：**总占用行与可见任务行严格一致**（评审方必查的一条）。
+       ------------------------------------------------------------------
+       口径：总占用行的 8 个格 = 8 周各自的「在办任务数」；数字必须与渲染出的任务行
+         **逐位一致**（若上行截断、下行全量，两者就会自相矛盾）。
+       期望值来自数据层实测（mock.js getPersonOccupancy('min.zhou').totals）：
+         W1..W8 = [2,2,2,2,0,1,0,1]。
+       同时断言：有占用的格**必须有可见数字**、无占用的格**必须没有数字**
+         —— 这是三档浅端对比度不足（1.31:1）时唯一可靠的可访问性通道，不许退化。 */
+    {
+      const totals = Array.from(doc.querySelectorAll('.dp-floor-work .dp-gantt-total'));
+      const counts = totals.map((el) => {
+        const n = norm(el.textContent);
+        return n === '' ? 0 : Number(n);
+      });
+      const EXPECT = [2, 2, 2, 2, 0, 1, 0, 1];
+      const digitsOk = totals.every((el, i) => {
+        const has = norm(el.textContent).length > 0;
+        return EXPECT[i] > 0 ? has : !has;
+      });
+      const same =
+        totals.length === 8 && counts.every((v, i) => v === EXPECT[i]) && digitsOk;
+      if (same) {
+        ok('v0.5 总占用行与可见行严格一致（周敏 8 周计数逐位 = [2,2,2,2,0,1,0,1]，且有占用的格必有数字、无占用的格必无数字）', JSON.stringify(counts));
+      } else {
+        fail('v0.5 总占用行/计数', `实得=${JSON.stringify(counts)} 格数=${totals.length} 数字门=${digitsOk}（期望 ${JSON.stringify(EXPECT)}）`);
+      }
+      // 档位 class 与计数同源：count 1→t-low / 2→t-mid / ≥3→t-high / 0→无档 class
+      // ⚠️ 必须先断言格数 = 8：否则 totals 为空数组时 every() 恒真 → **空转的装饰性断言**。
+      const tierOk =
+        totals.length === 8 &&
+        totals.every((el, i) => {
+          const exp = EXPECT[i] === 0 ? null : EXPECT[i] === 1 ? 't-low' : EXPECT[i] === 2 ? 't-mid' : 't-high';
+          const has = ['t-low', 't-mid', 't-high'].filter((k) => el.classList.contains(k));
+          return exp ? has.length === 1 && has[0] === exp : has.length === 0;
+        });
+      if (tierOk) ok('   ↳ 档位填充 class 与计数同源（8 格；0→无档 / 1→t-low / 2→t-mid / ≥3→t-high）');
+      else fail('   ↳ 档位 class 与计数同源', `格数=${totals.length}（期望 8）| ` + totals.map((el) => el.className).join(' | '));
+    }
+
+    /* ⑫ v0.5.1 实测门：图例必须**同时**解释两种填充 +「颜色不单独承载信息」。
+       ------------------------------------------------------------------
+       色值复算（本次按 global.css 实际值逐条算，对白底 #ffffff）：
+         --dp-gantt-slot #f5f4f5 → 1.097:1
+         --dp-gantt-l1   #dce0f4 → 1.312:1
+         --dp-gantt-l2   #a9b2e6 → 2.059:1
+         --dp-gantt-l3   #6b78d4 → 3.991:1
+         --dp-gantt-bar  #3643ba → 7.869:1   ← 最深，且**比最高档还深一倍**
+       三档本身无法靠颜色区分（l1 仅 1.31:1），故数字是主通道（见文件头纪律 ④）。
+       而任务条主色 7.87:1 是整屏面积最大、颜色最深的一块 —— **图例若不解释它**，
+       读者会把「任务在办」误读成「占用=高」。这正是独立评审定的 P1，本门是它的回归门：
+       只要有人把「任务行：◼ 该周在办」这一段删掉，本门立刻变红。
+       判据（四条全须成立）：
+         · 三档文案「轻（1 项）/中（2 项）/高（≥3 项）」都在；
+         · **任务行色带也被解释**（含「任务行：」与「该周在办」）；
+         · 数字口径被说明（含「格内数字」与「该周在办任务数」）——旧文案「格内数字为
+           该周在办任务数」把数字说成在任务行里，实际只有总占用行有数字，一并改正；
+         · 恰 4 个色块（`.dp-gantt-sw`），填充源**恰好**是 bar/l1/l2/l3 四个、不多不少
+           —— 只断言「N 个互不相同」会放过「把 l1 换成 bar」这类替换。
+       注：jsdom 不解 CSS 变量，故此处断言的是**内联 style 里的 var 名**；
+         真色值相等性由 Chrome 通道（tests/shots.cjs 断言 1d 的总占用行填充）负责。 */
+    {
+      const legend = doc.querySelector('.dp-floor-work .dp-gantt-legend');
+      const ltext = legend ? norm(legend.textContent) : '';
+      const tierCopy =
+        ltext.includes(norm('轻（1 项）')) &&
+        ltext.includes(norm('中（2 项）')) &&
+        ltext.includes(norm('高（≥3 项）'));
+      const barCopy = ltext.includes(norm('任务行：')) && ltext.includes(norm('该周在办'));
+      const numCopy = ltext.includes(norm('格内数字')) && ltext.includes(norm('该周在办任务数'));
+      const sw = legend ? Array.from(legend.querySelectorAll('.dp-gantt-sw')) : [];
+      const vars = sw.map((s) => ((s.getAttribute('style') || '').match(/--dp-gantt-\w+/) || [])[0]);
+      const WANT = ['--dp-gantt-bar', '--dp-gantt-l1', '--dp-gantt-l2', '--dp-gantt-l3'];
+      const setOk = sw.length === 4 && WANT.every((v) => vars.includes(v)) && new Set(vars).size === 4;
+      if (tierCopy && barCopy && numCopy && setOk) {
+        ok(
+          'v0.5.1 图例同时解释两种填充（任务行色带 + 总占用三档），4 个色块填充源恰为 bar/l1/l2/l3 —— 颜色未单独承载信息',
+          `${sw.length} 色块`
+        );
+      } else {
+        fail(
+          'v0.5.1 图例/颜色不单独承载信息',
+          `三档文案=${tierCopy} 任务条文案=${barCopy} 数字口径=${numCopy} 色块=${sw.length}（期望 4）填充源=${JSON.stringify(vars)}`
+        );
       }
     }
 
@@ -2099,25 +2377,37 @@ async function main() {
     }
   }
 
-  // —— 门 ⑫：工作内容空态（zhiwei.shen / yiming.gu 特意 0 条任务）——
+  // —— 门 ⑫：工作楼层空态（zhiwei.shen / yiming.gu 特意 0 条任务）——
+  // v0.5：空态文案与「无行」的判据都随甘特重锚。
+  //   旧判据数 `[style*="padding: 10px 12px"]` 的列表行；新判据数甘特的周格/行首格
+  //   —— 「无行」的证伪能力不变（甘特若渲染出任何任务行，两者都会 >0）。
   await navigate(win, '#/workspace/people/zhiwei.shen');
   await settle(560);
   {
     const workPanel = doc.querySelector('.dp-floor-work');
-    const emptyCopy = '暂无在办任务。任务数据来自 Jira 的负责人字段，仅展示当前至未来 1 个月的排期。';
+    const emptyCopy = '未来 8 周暂无在办任务占用。任务数据来自 Jira 的负责人字段，仅作协作参考。';
     const hasEmpty = workPanel && norm(workPanel.textContent).includes(norm(emptyCopy));
-    const noRows = workPanel ? workPanel.querySelectorAll('[style*="padding: 10px 12px"]').length === 0 : false;
-    if (hasEmpty && noRows) ok('v0.4.3 工作内容空态：zhiwei.shen 显示空态文案且无任务行');
-    else fail('v0.4.3 工作内容空态', `hasEmpty=${!!hasEmpty} rows=${workPanel ? workPanel.querySelectorAll('[style*="padding: 10px 12px"]').length : 'n/a'}`);
+    const ganttNodes = workPanel
+      ? workPanel.querySelectorAll('.dp-gantt-cell, .dp-gantt-rowhead, .dp-gantt-total').length
+      : -1;
+    const noRows = ganttNodes === 0;
+    if (hasEmpty && noRows) ok('v0.5 工作楼层空态：zhiwei.shen 显示空态文案且未渲染任何甘特行/格');
+    else fail('v0.5 工作楼层空态', `hasEmpty=${!!hasEmpty} ganttNodes=${ganttNodes}`);
     // 空态措辞不得含判词（铁律：不作为绩效评价）
-    const badWords = ['没有工作', '暂无产出', '工作量为空', '无任务安排'];
+    const badWords = ['没有工作', '暂无产出', '工作量为空', '无任务安排', '空闲', '闲置'];
     const hitBad = badWords.filter((w) => pageHas(doc, w));
-    if (hitBad.length === 0) ok('   ↳ 空态措辞无判词（无「没有工作/暂无产出」等）');
+    if (hitBad.length === 0) ok('   ↳ 空态措辞无判词（无「没有工作/暂无产出/空闲/闲置」等）');
     else fail('   ↳ 空态措辞含判词', hitBad.join(','));
-    // extra 显示「0 条」
-    const extraZero = workPanel && norm(workPanel.textContent).includes(norm('0 条'));
-    if (extraZero) ok('   ↳ 空态 extra 显示「0 条」');
-    else fail('   ↳ 空态 extra 应为「0 条」', '未找到');
+    // extra 显示「0 项占用」（v0.5.1 口径：项数 = 与 8 周有交集的在办任务数）
+    const extraZero = workPanel && norm(workPanel.textContent).includes(norm('0 项占用'));
+    if (extraZero) ok('   ↳ 空态 extra 显示「0 项占用」');
+    else fail('   ↳ 空态 extra 应为「0 项占用」', '未找到');
+    // v0.5.1：空态也不得静默丢弃「零交出行」——该人若恰有此类任务，必须明示条数。
+    //   （zhiwei.shen 实测 rows=0 / outside=0，故此处断言的是「不出现无意义的排除说明」，
+    //     配一条正向前提：文案里不得出现孤立的「另有 0 项」。）
+    const noZeroNote = workPanel && !norm(workPanel.textContent).includes(norm('另有 0 项'));
+    if (noZeroNote) ok('   ↳ 空态未出现无意义的「另有 0 项」排除说明');
+    else fail('   ↳ 空态出现了「另有 0 项」', 'outside=0 时不应渲染排除说明');
   }
 
   // —— 门 ⑩：组织速查表头「技能标签」有、「专长」无 ——
@@ -2552,6 +2842,35 @@ async function main() {
     const collapseOk = /@media \(max-width: 900px\)\{[^@]*?\.dp-g-duo/.test(css);
     if (duoGrid && profDefKept && artUnchanged && collapseOk) ok('v0.4.3 个人主页楼层 3 栅格 .dp-g-duo（1fr/1fr）已定义且 ≤900px 塌缩；.dp-g-profile 考古定义保留；.dp-g-article 未被污染');
     else fail('v0.4.3 .dp-g-duo 栅格', `duoGrid=${duoGrid} profDefKept=${profDefKept} articleUnchanged=${artUnchanged} collapse=${collapseOk}`);
+
+    /* v0.5 追加规则级门：甘特栅格 + 糅合层。
+       ★ 这三条是**规则级门**（读构建后的 style.css 文本），只证明「样式被写进去了」，
+         不证明「渲染出来是什么样」。真实渲染几何与色值由 Chrome 探针
+         `tests/_geom_gantt.cjs` 负责（见 mutation 的 gate:'geom-gantt'）。
+       为什么要单独守 `column-gap:0`：只要它非 0，跨周色带就会被切成 N 段 —— 这是
+         「连续色带」这条用户诉求最容易被无声破坏的地方。 */
+    const ganttGrid = /\.dp-gantt\{[^}]*grid-template-columns:\s*minmax\(180px,\s*240px\)\s*repeat\(8,\s*minmax\(44px,\s*1fr\)\)/.test(css);
+    const ganttGap0 = /\.dp-gantt\{[^}]*column-gap:\s*0[;}]/.test(css);
+    const ganttMinW = /\.dp-gantt\{[^}]*min-width:\s*512px/.test(css);
+    const ganttBp = /@media \(max-width: 1200px\)\{[^@]*?\.dp-gantt/.test(css) && /@media \(max-width: 900px\)\{[^@]*?\.dp-gantt/.test(css);
+    const mergedP0 = /\.dp-floor-merged\{[^}]*padding:\s*0/.test(css);
+    const barRule = /\.dp-gantt-cell\.is-on\{[^}]*background:\s*var\(--dp-gantt-bar\)/.test(css);
+    const tierRules =
+      /\.dp-gantt-total\.t-low\{[^}]*var\(--dp-gantt-l1\)/.test(css) &&
+      /\.dp-gantt-total\.t-mid\{[^}]*var\(--dp-gantt-l2\)/.test(css) &&
+      /\.dp-gantt-total\.t-high\{[^}]*var\(--dp-gantt-l3\)/.test(css);
+    const ganttOk = ganttGrid && ganttGap0 && ganttMinW && ganttBp && mergedP0 && barRule && tierRules;
+    if (ganttOk) {
+      ok('v0.5 甘特栅格/色带/三档 的 CSS 规则全部落地（1 任务列 + repeat(8,…) 周列、column-gap:0、min-width:512px、1200/900 两断点、糅合层 padding:0、任务条与三档填充各自走对应变量）');
+    } else {
+      fail('v0.5 甘特 CSS 规则', `grid=${ganttGrid} gap0=${ganttGap0} minW=${ganttMinW} bp=${ganttBp} merged=${mergedP0} bar=${barRule} tiers=${tierRules}`);
+    }
+    // 6 个甘特变量必须都在 :root 里（且值 = 现有 token 的别名，非新色值）
+    const varsOk = ['--dp-gantt-slot', '--dp-gantt-l1', '--dp-gantt-l2', '--dp-gantt-l3', '--dp-gantt-bar', '--dp-gantt-line'].every(
+      (v) => css.indexOf(v + ':') >= 0
+    );
+    if (varsOk) ok('   ↳ 6 个 --dp-gantt-* 别名变量已定义（零新色值：值均为现有 token）');
+    else fail('   ↳ --dp-gantt-* 变量缺失', css.match(/--dp-gantt-[a-z0-9]+:/g)?.join(',') || '0 命中');
     // 死代码清理：AXIS_GLYPH 常量定义 / TagArrow 组件不得残留（注释中的历史提及不计）
     const uiSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'ui.jsx'), 'utf8');
     const axDef = /(?:const|let|var)\s+AXIS_GLYPH\s*=/.test(uiSrc) || /AXIS_GLYPH\s*\[/.test(uiSrc);

@@ -99,16 +99,32 @@ const MEASURE = `JSON.stringify((()=>{
     promise: G('.dp-demand-promise'),
     assistant: G('.dp-demand-assistant'),
   } : null;
-  // v0.4.3 个人主页楼层 3 两栏栅格几何（.dp-g-duo）：量两个直接子列的 left/top/width。
-  //   v0.4.3 改动：个人主页楼层 3 由「非对称 .dp-g-profile（1.85fr/1fr）」改为
-  //   「等宽双栏 .dp-g-duo（1fr/1fr）」。采集选择器随之改为 .dp-g-duo（否则量到 null）。
-  //   规范（global.css）：grid-template-columns: minmax(0,1fr) minmax(0,1fr)；
-  //   ≤900px 塌缩为单列（两列 left 相同、上下列排）。这是 jsdom 无布局引擎、只能靠真实 Chrome 实测的项。
-  const profGrid = document.querySelector('.dp-g-duo');
-  const profGeom = profGrid ? {
-    cols: Array.from(profGrid.children).map((e) => { const r = e.getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top), w: Math.round(r.width) }; }),
-    gridW: Math.round(profGrid.getBoundingClientRect().width),
-    cols0: getComputedStyle(profGrid).gridTemplateColumns,
+  // v0.5 个人主页「未来 8 周资源占用」甘特几何（.dp-floor-work .dp-gantt）：
+  //   量 9 个表头格宽（下标 0=任务列，1–8=W1…W8）、任务格高、行首数、栅格实际列轨道、
+  //   滚动容器的 scrollWidth/clientWidth/overflow-x。
+  //   规范（global.css）：grid-template-columns: minmax(180px,240px) repeat(8,minmax(44px,1fr))；
+  //     容器 .dp-gantt-scroll{overflow-x:auto}；栅格 min-width:512px。
+  //   v0.4.3 的 .dp-g-duo 在 v0.5 已不存在（楼层 2/3 不再是双栏），量它只会得到 null。
+  //   这是 jsdom 无布局引擎、只能靠真实 Chrome 实测的项。
+  const ganttEl = document.querySelector('.dp-floor-work .dp-gantt');
+  const ganttScrollEl = document.querySelector('.dp-floor-work .dp-gantt-scroll');
+  const ganttGeom = ganttEl ? {
+    headW: Array.from(ganttEl.querySelectorAll('.dp-gantt-head')).map((e) => Math.round(e.getBoundingClientRect().width)),
+    cellH: Array.from(ganttEl.querySelectorAll('.dp-gantt-cell')).slice(0, 8).map((e) => Math.round(e.getBoundingClientRect().height)),
+    rowCount: ganttEl.querySelectorAll('.dp-gantt-rowhead').length,
+    cellCount: ganttEl.querySelectorAll('.dp-gantt-cell').length,
+    gridW: Math.round(ganttEl.getBoundingClientRect().width),
+    cols0: getComputedStyle(ganttEl).gridTemplateColumns,
+    // 总占用行：class / 文本 / **解析后的填充色**。
+    //   v0.5.1 追加：评审 Q5-P2 指出最高档（t-high）此前零端到端验证
+    //   （min.zhou 各周最大 2），而 --dp-gantt-l1/l2/l3/slot 的真实解析值
+    //   在 jsdom 里读不到（jsdom 不解 CSS 自定义属性）——只能在本通道证明。
+    totalCls: Array.from(ganttEl.querySelectorAll('.dp-gantt-total')).map((e) => e.className),
+    totalTxt: Array.from(ganttEl.querySelectorAll('.dp-gantt-total')).map((e) => (e.textContent || '').trim()),
+    totalBg: Array.from(ganttEl.querySelectorAll('.dp-gantt-total')).map((e) => getComputedStyle(e).backgroundColor),
+    scrollW: ganttScrollEl ? Math.round(ganttScrollEl.scrollWidth) : null,
+    scrollCW: ganttScrollEl ? Math.round(ganttScrollEl.clientWidth) : null,
+    scrollOverflowX: ganttScrollEl ? getComputedStyle(ganttScrollEl).overflowX : null,
   } : null;
   return {
     vw: window.innerWidth,
@@ -127,7 +143,7 @@ const MEASURE = `JSON.stringify((()=>{
     floatBelowTopbar: fr && tb ? fr.top >= tb.getBoundingClientRect().bottom : null,
     shellPadBottom: shellCS ? parseFloat(shellCS.paddingBottom) : null,
     specGeom,
-    profGeom,
+    ganttGeom,
   };
 })())`;
 
@@ -187,6 +203,13 @@ const SHOTS = [
   // 标签体系新页面（个人主页 + 反查页）
   { name: '18-person-1440', hash: '#/workspace/people/min.zhou', w: 1440, h: 1500 },
   { name: '19-person-768', hash: '#/workspace/people/min.zhou', w: 768, h: 1700 },
+  //   v0.5 新增 375 档：唯一能实测「甘特栅格守 min-width:512px + .dp-gantt-scroll 真的横向溢出的档位。
+  //   （1440 宽裕，栅格不会溢出滚动容器 → 只看表头 9 格与周列等宽；375 才逼出滚动逻辑。）
+  { name: '29-person-375', hash: '#/workspace/people/min.zhou', w: 375, h: 2400, mobile: true },
+  //   v0.5.1 新增：陈思远是**唯一**会出现最高档（周计数 ≥3）的样本 ——
+  //   min.zhou 各周最大只有 2，故 t-high 的渲染色此前完全没被验证过。
+  //   （数据实测 siyuan.chen 的 8 周计数 = [1,2,3,2,2,1,0,1]，W3 = 3 → t-high。）
+  { name: '30-person-siyuan-1440', hash: '#/workspace/people/siyuan.chen', w: 1440, h: 1500 },
   { name: '20-tags-1440', hash: '#/workspace/tags', w: 1440, h: 1500 },
   { name: '21-tags-375', hash: '#/workspace/tags', w: 375, h: 1700, mobile: true },
   // 站点重构一级栏目：业务需求（楼层 5 格）+ 组织速查 + 需求提交（表单顺序两档）
@@ -578,41 +601,81 @@ async function main() {
     failures.push('断言1c 哨兵：#/demand/new 的任何截图都未量到 .dp-g-spec —— 页面可能没渲染（检查路由与 CLICK_BRD）');
   }
 
-  // 断言1d：★ 真实几何门 —— v0.4.3 个人主页楼层 3 两栏栅格（.dp-g-duo）
-  //   规范（global.css）：grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)（等宽双栏）；
-  //     ≤900px 塌缩为单列。jsdom 无布局引擎 → 只有本通道能实测「两栏真的等宽 / 真的塌缩成单列」。
-  //   v0.4.3 改动：选择器由 .dp-g-profile 改为 .dp-g-duo；宽屏期望比由 ≈1.85 改为 **≈1.00**
-  //     （容差 [0.92, 1.08]，计入 24px gap 分配与亚像素取整）。
-  //   判定：宽屏（1440）两列 left 不同 + width 比落在 [0.92, 1.08]；窄屏（768）两列 left 相同（单列堆叠）。
+  // 断言1d：★ 真实几何门 —— v0.5 个人主页「未来 8 周资源占用」甘特（.dp-floor-work .dp-gantt）
+  //   规范（global.css）：grid-template-columns: minmax(180px,240px) repeat(8, minmax(44px,1fr))；
+  //     容器 .dp-gantt-scroll{overflow-x:auto}；栅格 min-width:512px。
+  //   v0.4.3 的判据（.dp-g-duo 两栏宽比≈1.00 + ≤900 单列）随 .dp-g-duo 一起作废：v0.5 楼层 2 独占通栏。
+  //   新判据（双侧可证伪，不是「量到就绿」）：
+  //     1440 —— 表头恰好 9 格（任务列 + W1…W8）；8 个周列宽彼此近似相等（证明 repeat(8,1fr) 真生效，
+  //             而不是被内容撑成不等宽）；任务列严格宽于任一 week 列（证明 minmax(180px,240px) 压过 1fr）。
+  //     375  —— 宽度不足时栅格必须守 512px 下限（gridW ≥ 512）且滚动容器真的溢出（scrollW > scrollCW），
+  //             证明是「横向滚动」而非「把 8 周挤成一坨」；overflow-x 计算值必须是 auto。
+  //   两侧都反过来可红：删掉 min-width → 375 两条同时红；把 1fr 改成 auto → 1440 周列不等宽红。
   {
-    const profWide = report.find((r) => r.name === '18-person-1440');
-    const profNarrow = report.find((r) => r.name === '19-person-768');
-    const pg = (r) => (r && r.measure && typeof r.measure === 'object' ? r.measure.profGeom : null);
+    const gAt = (name) => { const r = report.find((x) => x.name === name); return r && r.measure && typeof r.measure === 'object' ? r.measure.ganttGeom : null; };
 
-    // (a) 宽屏：两列 left 不同、两列宽度近似相等、宽比 ≈ 1.00
+    // (a) 1440：9 格表头 + 周列等宽 + 任务列更宽
     {
-      const g = pg(profWide);
-      if (!g || !g.cols || g.cols.length < 2) {
-        failures.push('断言1d 个人主页栅格 18-person-1440：未量到 .dp-g-duo 的两列几何');
+      const g = gAt('18-person-1440');
+      if (!g || !g.headW || g.headW.length !== 9) {
+        failures.push(`断言1d 甘特 18-person-1440：未量到 .dp-gantt 的 9 个表头格（实测 ${g && g.headW ? g.headW.length : 'null'}）`);
       } else {
-        const [a, b] = g.cols;
-        if (a.left === b.left) failures.push(`断言1d 个人主页栅格 18-person-1440：两列 left 相同（${a.left}）——宽屏应为两栏而非单列`);
-        const lo = Math.min(a.w, b.w);
-        const ratio = lo ? Math.max(a.w, b.w) / lo : null;
-        if (ratio == null || ratio < 0.92 || ratio > 1.08) {
-          failures.push(`断言1d 个人主页栅格 18-person-1440：两列宽比 ${ratio == null ? 'n/a' : ratio.toFixed(3)} 应 ≈1.00（容差 0.92–1.08）；实测 列1=${a.w}px 列2=${b.w}px，grid-template-columns=${g.cols0}`);
+        const weeks = g.headW.slice(1);
+        const lo = Math.min(...weeks);
+        const hi = Math.max(...weeks);
+        if (!lo) {
+          failures.push(`断言1d 甘特 18-person-1440：周列宽出现 0（表头塌陷），headW=${g.headW.join('/')}`);
+        } else {
+          const ratio = hi / lo;
+          if (ratio > 1.08) failures.push(`断言1d 甘特 18-person-1440：8 个周列宽应近似相等，实测 ${weeks.join('/')} 宽比=${ratio.toFixed(3)}（>1.08）；grid-template-columns=${g.cols0}`);
         }
+        if (!(g.headW[0] > hi)) failures.push(`断言1d 甘特 18-person-1440：任务列应严格宽于任一周列，实测 任务列=${g.headW[0]}px 最宽周列=${hi}px；grid-template-columns=${g.cols0}`);
+        if (!(g.rowCount >= 1)) failures.push('断言1d 甘特 18-person-1440：未量到任何 .dp-gantt-rowhead 行首（甘特无行）');
       }
     }
-    // (b) ≤900 窄屏：塌缩单列（两列 left 相同、宽度近似相等、上下列排）
+    // (b) 375：min-width 兜底生效 + 滚动容器真的溢出
     {
-      const g = pg(profNarrow);
-      if (!g || !g.cols || g.cols.length < 2) {
-        failures.push('断言1d 个人主页栅格 19-person-768：未量到 .dp-g-duo 的两列几何');
+      const g = gAt('29-person-375');
+      if (!g) {
+        failures.push('断言1d 甘特 29-person-375：未量到 .dp-gantt（该档未渲染甘特，或选择器已失效）');
       } else {
-        const [a, b] = g.cols;
-        if (a.left !== b.left) failures.push(`断言1d 个人主页栅格 19-person-768：≤900px 应塌缩为单列（两列 left 相同），实测 ${a.left} vs ${b.left}`);
-        if (!(b.top > a.top)) failures.push(`断言1d 个人主页栅格 19-person-768：单列后第二列应在第一列之下，实测 a.top=${a.top} b.top=${b.top}`);
+        if (!(g.gridW >= 512)) failures.push(`断言1d 甘特窄屏 29-person-375：栅格宽应受 min-width:512px 兜底（≥512），实测 ${g.gridW}px —— 说明 8 周是被挤扁而不是横向滚动`);
+        if (g.scrollCW == null || g.scrollW == null) failures.push('断言1d 甘特 29-person-375：未量到 .dp-gantt-scroll 的 scrollWidth/clientWidth');
+        else if (!(g.scrollW > g.scrollCW)) failures.push(`断言1d 甘特窄屏 29-person-375：滚动容器应真的溢出（scrollW > clientW），实测 ${g.scrollW} vs ${g.scrollCW} —— 要么滚动容器没兜住，要么栅格被压到视口宽`);
+        if (g.scrollOverflowX !== 'auto') failures.push(`断言1d 甘特窄屏 29-person-375：.dp-gantt-scroll 的 overflow-x 计算值应为 auto，实测 ${g.scrollOverflowX}`);
+      }
+    }
+    // (c) 1440 · 陈思远：**最高档 t-high 的渲染色**（评审 Q5-P2 的覆盖盲区）。
+    //   数据实测 siyuan.chen 的 8 周计数 = [1,2,3,2,2,1,0,1] → 档位
+    //   low,mid,high,mid,mid,low,null,low。把「格内数字 / 档位 class / **解析后的填色**」
+    //   三者逐格对拍：任一漂移即红。jsdom 读不到 CSS 变量的解析值，所以
+    //   `--dp-gantt-l1/l2/l3/slot` 到底解析成哪三个色阶，只有本通道能证明。
+    {
+      const g = gAt('30-person-siyuan-1440');
+      if (!g || !g.totalBg || g.totalBg.length !== 8) {
+        failures.push(`断言1d 甘特三档填色 30-person-siyuan-1440：未量到 .dp-gantt-total 的 8 格填充（实测 ${g && g.totalBg ? g.totalBg.length : 'null'}）`);
+      } else {
+        const nrm = (s) => String(s || '').replace(/\s+/g, '');
+        const L = { low: 'rgb(220,224,244)', mid: 'rgb(169,178,230)', high: 'rgb(107,120,212)' };
+        const SLOT = 'rgb(245,244,245)';
+        const EXPECT = [1, 2, 3, 2, 2, 1, 0, 1];
+        const bad = [];
+        EXPECT.forEach((n, i) => {
+          const tier = n === 0 ? null : n === 1 ? 'low' : n === 2 ? 'mid' : 'high';
+          const cls = g.totalCls[i] || '';
+          const clsOk = tier ? cls.includes('t-' + tier) : !/t-(low|mid|high)/.test(cls);
+          const bgOk = nrm(g.totalBg[i]) === (tier ? L[tier] : SLOT);
+          const txtOk = (g.totalTxt[i] || '') === (n === 0 ? '' : String(n));
+          if (!clsOk || !bgOk || !txtOk) {
+            bad.push(`W${i + 1} n=${n} cls=${JSON.stringify(cls)} bg=${g.totalBg[i]} txt=${JSON.stringify(g.totalTxt[i])}`);
+          }
+        });
+        if (bad.length) {
+          failures.push(`断言1d 甘特三档填色 30-person-siyuan-1440：${bad.length} 格「数字/档位 class/解析填色」三者不一致 → ${bad.join(' | ')}`);
+        } else if (!(g.totalCls.some((c) => /t-high/.test(c)) && g.totalBg.some((b) => nrm(b) === L.high))) {
+          // 反向自证：样本里**必须真的出现** t-high，否则「全对」可能只是「全没测到」。
+          failures.push(`断言1d 甘特三档填色 30-person-siyuan-1440：8 格全部自洽但样本里没出现 t-high —— 最高档仍是零覆盖，本门形同虚设（cls=${JSON.stringify(g.totalCls)}）`);
+        }
       }
     }
   }
@@ -706,20 +769,24 @@ async function main() {
     console.log(`    ${nm} (${r.viewport})  promise[${f(g.promise)}]  assistant[${f(g.assistant)}]  form[${f(g.form)}]  side[${f(g.side)}]`);
   }
 
-  /* v0.4.3 个人主页楼层 3 两栏栅格几何实测值（人读）——证明「1:1 等宽 + ≤900 单列」是量出来的 */
-  console.log('\n  v0.4.3 个人主页 .dp-g-duo 两栏几何实测（getBoundingClientRect）：');
-  for (const nm of ['18-person-1440', '19-person-768']) {
+  /* v0.5/v0.5.1 个人主页甘特几何实测值（人读）——证明「9 格表头 + 周列等宽 + 窄屏横向滚动
+     + 三档填色真的解析成三个色阶」是量出来的 */
+  console.log('\n  v0.5 个人主页 .dp-gantt 甘特几何实测（getBoundingClientRect）：');
+  for (const nm of ['18-person-1440', '29-person-375', '30-person-siyuan-1440']) {
     const r = report.find((x) => x.name === nm);
-    const g = r && r.measure ? r.measure.profGeom : null;
+    const g = r && r.measure ? r.measure.ganttGeom : null;
     if (!g) {
-      console.log(`    ${nm}：未量到 profGeom`);
+      console.log(`    ${nm}：未量到 ganttGeom`);
       continue;
     }
-    const c0 = g.cols[0] || {};
-    const c1 = g.cols[1] || {};
-    const lo = Math.min(c0.w || 0, c1.w || 0);
-    const ratio = lo ? (Math.max(c0.w, c1.w) / lo).toFixed(3) : 'n/a';
-    console.log(`    ${nm} (${r.viewport})  列1[w=${c0.w} left=${c0.left}]  列2[w=${c1.w} left=${c1.left}]  宽比=${ratio}  grid-template-columns=${g.cols0}`);
+    const wk = Array.isArray(g.headW) ? g.headW.slice(1) : [];
+    const lo = wk.length ? Math.min(...wk) : 0;
+    const hi = wk.length ? Math.max(...wk) : 0;
+    const ratio = lo ? (hi / lo).toFixed(3) : 'n/a';
+    console.log(`    ${nm} (${r.viewport})  表头格=${g.headW.length} 任务列=${g.headW[0]}px 周列min/max=${lo}/${hi} 宽比=${ratio}  行首=${g.rowCount} 任务格=${g.cellCount}  栅格w=${g.gridW}  滚动=${g.scrollW}/${g.scrollCW} overflowX=${g.scrollOverflowX}`);
+    console.log(`        grid-template-columns=${g.cols0}`);
+    console.log(`        总占用行 数字=[${(g.totalTxt || []).join(',')}]  填色=[${(g.totalBg || []).join(' ')}]`);
+    console.log(`        总占用行 class=[${(g.totalCls || []).join(' | ')}]`);
   }
 
   if (failures.length) {
@@ -727,7 +794,7 @@ async function main() {
     failures.forEach((f) => console.error('  - ' + f));
     process.exitCode = 1;
   } else {
-    console.log(`\n[OK] 断言1–4 全部通过（含 #/demand/new 表单顺序真实几何门 900/1280/375；v0.4.3 个人主页 .dp-g-duo 两栏宽比≈1.00 + ≤900 单列真实几何门 1440/768；无空数据 / 无溢出 / 顶栏高恒等且单调 / 内容不超宽 / navText 上区间且 ≥${T_B2} 可见）`);
+    console.log(`\n[OK] 断言1–4 全部通过（含 #/demand/new 表单顺序真实几何门 900/1280/375；v0.5 个人主页 .dp-gantt 9 格表头 + 周列等宽 + 任务列更宽 @1440、min-width:512px 兜底 + 滚动容器真溢出 @375、v0.5.1 三档填色与数字/class 逐格自洽且 t-high 确在样本内 @陈思远1440；无空数据 / 无溢出 / 顶栏高恒等且单调 / 内容不超宽 / navText 上区间且 ≥${T_B2} 可见）`);
   }
 }
 

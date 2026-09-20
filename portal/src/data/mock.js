@@ -1300,55 +1300,72 @@ export const WORK_WINDOW_END = '2026-10-17'; // 写死右界，不用运行时�
 
 /**
  * JIRA_ISSUES —— 每条 = 一个 Jira issue（issue 为中心，而非「人的属性」）。
- * 字段：key（单号，兼作 React key）/ title / status / due（'YYYY-MM-DD'）/ project /
- *       priority（选填）/ assigneeId（personId 结构化外键）。
+ * 字段：key（单号，兼作 React key）/ title / status / start（'YYYY-MM-DD'，v0.5 新增）/
+ *       due（'YYYY-MM-DD'）/ project / priority（选填）/ assigneeId（personId 结构化外键）。
  * status 4 态：'todo' | 'inprogress' | 'review' | 'blocked'（blocked 不上屏，见 ui.jsx WorkStatusPill）。
+ *
+ * start 的口径（v0.5）：它是「资源占用甘特图」的左界，**只服务于 getPersonOccupancy**；
+ *   getPersonWork 的筛选条件仍只看 due，故 start 的加入对工作面板是**零行为变化**。
+ *   取值由 priority 反推（P0 −7d / P1 −5d / P2 −3d），是**写死字面量**不是运行时计算。
  *
  * 覆盖：8 人有任务；zhiwei.shen / yiming.gu **特意 0 条**（测空态）。
  * 含 1 条 status:'blocked' 样本；含逾期样本（due < WORK_WINDOW_AS_OF 且未完结）。
  * 全部静态字面量，**无 new Date() / 无 Math.random()**。
+ * 共 41 条：原 30 条（due ≤ 2026-10-16）+ 11 条 v0.5 追加（due ≥ 2026-10-19，落在 W6~W8）。
  */
 export const JIRA_ISSUES = [
   // —— 周敏 min.zhou（设计系统负责人）——
-  { key: 'DS-3102', title: '设计令牌 v2 全站迁移与回归', status: 'inprogress', due: '2026-09-22', project: '设计系统', priority: 'P0', assigneeId: 'min.zhou' },
-  { key: 'DS-3110', title: '组件库无障碍标注补齐', status: 'review', due: '2026-09-29', project: '设计系统', priority: 'P1', assigneeId: 'min.zhou' },
-  { key: 'DS-3125', title: '深色模式令牌映射评审', status: 'todo', due: '2026-10-06', project: '设计系统', priority: 'P2', assigneeId: 'min.zhou' },
-  { key: 'DS-3080', title: '图标线性化收尾（面版图标下线）', status: 'inprogress', due: '2026-09-15', project: '设计系统', priority: 'P1', assigneeId: 'min.zhou' }, // 逾期样本
-  { key: 'DS-3121', title: '设计规范文档站改版', status: 'blocked', due: '2026-10-09', project: '设计系统', priority: 'P2', assigneeId: 'min.zhou' }, // blocked 样本
+  { key: 'DS-3102', title: '设计令牌 v2 全站迁移与回归', status: 'inprogress', start: '2026-09-15', due: '2026-09-22', project: '设计系统', priority: 'P0', assigneeId: 'min.zhou' },
+  { key: 'DS-3110', title: '组件库无障碍标注补齐', status: 'review', start: '2026-09-24', due: '2026-09-29', project: '设计系统', priority: 'P1', assigneeId: 'min.zhou' },
+  { key: 'DS-3125', title: '深色模式令牌映射评审', status: 'todo', start: '2026-10-03', due: '2026-10-06', project: '设计系统', priority: 'P2', assigneeId: 'min.zhou' },
+  { key: 'DS-3080', title: '图标线性化收尾（面版图标下线）', status: 'inprogress', start: '2026-09-10', due: '2026-09-15', project: '设计系统', priority: 'P1', assigneeId: 'min.zhou' }, // 逾期样本
+  { key: 'DS-3121', title: '设计规范文档站改版', status: 'blocked', start: '2026-10-06', due: '2026-10-09', project: '设计系统', priority: 'P2', assigneeId: 'min.zhou' }, // blocked 样本
   // —— 陈思远 siyuan.chen（会员增长组 · 产品经理）——
-  { key: 'MEM-2184', title: '会员积分规则迁移到自然年', status: 'review', due: '2026-10-08', project: '会员中心', priority: 'P0', assigneeId: 'siyuan.chen' },
-  { key: 'MEM-2190', title: '小程序会员等级权益改版', status: 'inprogress', due: '2026-09-25', project: '会员小程序', priority: 'P1', assigneeId: 'siyuan.chen' },
-  { key: 'MEM-2201', title: 'CRM 人群包同步链路梳理', status: 'todo', due: '2026-10-02', project: '会员中心', priority: 'P2', assigneeId: 'siyuan.chen' },
-  { key: 'MEM-2205', title: '积分商城兑换上限策略', status: 'todo', due: '2026-10-14', project: '会员中心', priority: 'P2', assigneeId: 'siyuan.chen' },
-  { key: 'MEM-2209', title: '生日礼遇触达文案优化', status: 'inprogress', due: '2026-10-01', project: '会员小程序', priority: 'P1', assigneeId: 'siyuan.chen' },
-  { key: 'MEM-2213', title: '会员数据看板口径对齐', status: 'todo', due: '2026-10-16', project: '经营看板', priority: 'P2', assigneeId: 'siyuan.chen' },
-  { key: 'MEM-2160', title: '积分过期提醒补偿方案', status: 'inprogress', due: '2026-09-10', project: '会员中心', priority: 'P1', assigneeId: 'siyuan.chen' }, // 逾期样本
+  { key: 'MEM-2184', title: '会员积分规则迁移到自然年', status: 'review', start: '2026-10-01', due: '2026-10-08', project: '会员中心', priority: 'P0', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2190', title: '小程序会员等级权益改版', status: 'inprogress', start: '2026-09-20', due: '2026-09-25', project: '会员小程序', priority: 'P1', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2201', title: 'CRM 人群包同步链路梳理', status: 'todo', start: '2026-09-29', due: '2026-10-02', project: '会员中心', priority: 'P2', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2205', title: '积分商城兑换上限策略', status: 'todo', start: '2026-10-11', due: '2026-10-14', project: '会员中心', priority: 'P2', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2209', title: '生日礼遇触达文案优化', status: 'inprogress', start: '2026-09-26', due: '2026-10-01', project: '会员小程序', priority: 'P1', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2213', title: '会员数据看板口径对齐', status: 'todo', start: '2026-10-13', due: '2026-10-16', project: '经营看板', priority: 'P2', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2160', title: '积分过期提醒补偿方案', status: 'inprogress', start: '2026-09-05', due: '2026-09-10', project: '会员中心', priority: 'P1', assigneeId: 'siyuan.chen' }, // 逾期样本
   // —— 林望 wang.lin（门店数字化组 · 技术负责人）——
-  { key: 'POS-1420', title: 'POS 结算性能优化第二阶段', status: 'inprogress', due: '2026-09-30', project: '门店 POS', priority: 'P0', assigneeId: 'wang.lin' },
-  { key: 'POS-1435', title: '自助结账反扫兼容性改造', status: 'review', due: '2026-10-07', project: '自助结账', priority: 'P1', assigneeId: 'wang.lin' },
-  { key: 'POS-1441', title: '多门店并发压测脚本', status: 'todo', due: '2026-10-13', project: '门店 POS', priority: 'P2', assigneeId: 'wang.lin' },
-  { key: 'POS-1408', title: '离线收银断网续传', status: 'inprogress', due: '2026-09-19', project: '门店 POS', priority: 'P1', assigneeId: 'wang.lin' },
+  { key: 'POS-1420', title: 'POS 结算性能优化第二阶段', status: 'inprogress', start: '2026-09-23', due: '2026-09-30', project: '门店 POS', priority: 'P0', assigneeId: 'wang.lin' },
+  { key: 'POS-1435', title: '自助结账反扫兼容性改造', status: 'review', start: '2026-10-02', due: '2026-10-07', project: '自助结账', priority: 'P1', assigneeId: 'wang.lin' },
+  { key: 'POS-1441', title: '多门店并发压测脚本', status: 'todo', start: '2026-10-10', due: '2026-10-13', project: '门店 POS', priority: 'P2', assigneeId: 'wang.lin' },
+  { key: 'POS-1408', title: '离线收银断网续传', status: 'inprogress', start: '2026-09-14', due: '2026-09-19', project: '门店 POS', priority: 'P1', assigneeId: 'wang.lin' },
   // —— 刘倩 qian.liu（电商平台组 · 产品经理）——
-  { key: 'EC-2260', title: '商城购物车合并结算', status: 'inprogress', due: '2026-09-26', project: '线上商城', priority: 'P0', assigneeId: 'qian.liu' },
-  { key: 'EC-2271', title: '大促优惠叠加规则配置化', status: 'review', due: '2026-10-05', project: '促销中心', priority: 'P1', assigneeId: 'qian.liu' },
-  { key: 'EC-2280', title: '订单拆单与合单策略', status: 'todo', due: '2026-10-12', project: '线上商城', priority: 'P2', assigneeId: 'qian.liu' },
+  { key: 'EC-2260', title: '商城购物车合并结算', status: 'inprogress', start: '2026-09-19', due: '2026-09-26', project: '线上商城', priority: 'P0', assigneeId: 'qian.liu' },
+  { key: 'EC-2271', title: '大促优惠叠加规则配置化', status: 'review', start: '2026-09-30', due: '2026-10-05', project: '促销中心', priority: 'P1', assigneeId: 'qian.liu' },
+  { key: 'EC-2280', title: '订单拆单与合单策略', status: 'todo', start: '2026-10-09', due: '2026-10-12', project: '线上商城', priority: 'P2', assigneeId: 'qian.liu' },
   // —— 沈知微 zhiwei.shen（数据平台组）：**特意 0 条任务**（空态样本）——
   // —— 何嘉 jia.he（SRE 组）——
-  { key: 'SRE-880', title: '监控告警降噪与分级', status: 'inprogress', due: '2026-09-24', project: '可观测平台', priority: 'P0', assigneeId: 'jia.he' },
-  { key: 'SRE-892', title: 'SSO 会话续期稳定性治理', status: 'review', due: '2026-10-03', project: 'SSO', priority: 'P1', assigneeId: 'jia.he' },
-  { key: 'SRE-901', title: '灰度发布流水线收敛', status: 'todo', due: '2026-10-15', project: 'CI/CD', priority: 'P2', assigneeId: 'jia.he' },
-  { key: 'SRE-860', title: '核心链路 SLO 复盘', status: 'inprogress', due: '2026-09-08', project: '可观测平台', priority: 'P1', assigneeId: 'jia.he' }, // 逾期样本
+  { key: 'SRE-880', title: '监控告警降噪与分级', status: 'inprogress', start: '2026-09-17', due: '2026-09-24', project: '可观测平台', priority: 'P0', assigneeId: 'jia.he' },
+  { key: 'SRE-892', title: 'SSO 会话续期稳定性治理', status: 'review', start: '2026-09-28', due: '2026-10-03', project: 'SSO', priority: 'P1', assigneeId: 'jia.he' },
+  { key: 'SRE-901', title: '灰度发布流水线收敛', status: 'todo', start: '2026-10-12', due: '2026-10-15', project: 'CI/CD', priority: 'P2', assigneeId: 'jia.he' },
+  { key: 'SRE-860', title: '核心链路 SLO 复盘', status: 'inprogress', start: '2026-09-03', due: '2026-09-08', project: '可观测平台', priority: 'P1', assigneeId: 'jia.he' }, // 逾期样本
   // —— 郑远 yuan.zheng（供应链数字化组）——
-  { key: 'SUP-660', title: '库存周转预测模型上线', status: 'inprogress', due: '2026-09-28', project: '库存与供应链', priority: 'P0', assigneeId: 'yuan.zheng' },
-  { key: 'SUP-671', title: '自动补货阈值调优', status: 'review', due: '2026-10-10', project: '库存与供应链', priority: 'P1', assigneeId: 'yuan.zheng' },
+  { key: 'SUP-660', title: '库存周转预测模型上线', status: 'inprogress', start: '2026-09-21', due: '2026-09-28', project: '库存与供应链', priority: 'P0', assigneeId: 'yuan.zheng' },
+  { key: 'SUP-671', title: '自动补货阈值调优', status: 'review', start: '2026-10-05', due: '2026-10-10', project: '库存与供应链', priority: 'P1', assigneeId: 'yuan.zheng' },
   // —— 吴桐 tong.wu（门店数字化组 · 工程师）——
-  { key: 'ESL-330', title: '电子价签批量刷新性能', status: 'inprogress', due: '2026-09-27', project: '电子价签', priority: 'P1', assigneeId: 'tong.wu' },
-  { key: 'ESL-341', title: '门店设备离线告警补全', status: 'todo', due: '2026-10-11', project: '门店设备', priority: 'P2', assigneeId: 'tong.wu' },
-  { key: 'ESL-352', title: '价签模板与端侧缓存', status: 'todo', due: '2026-10-16', project: '电子价签', priority: 'P2', assigneeId: 'tong.wu' },
+  { key: 'ESL-330', title: '电子价签批量刷新性能', status: 'inprogress', start: '2026-09-22', due: '2026-09-27', project: '电子价签', priority: 'P1', assigneeId: 'tong.wu' },
+  { key: 'ESL-341', title: '门店设备离线告警补全', status: 'todo', start: '2026-10-08', due: '2026-10-11', project: '门店设备', priority: 'P2', assigneeId: 'tong.wu' },
+  { key: 'ESL-352', title: '价签模板与端侧缓存', status: 'todo', start: '2026-10-13', due: '2026-10-16', project: '电子价签', priority: 'P2', assigneeId: 'tong.wu' },
   // —— 顾一鸣 yiming.gu（安全合规）：**特意 0 条任务**（空态样本）——
   // —— 孙玥 yue.sun（内容运营）——
-  { key: 'OPS-455', title: '门户内容运营台改版', status: 'inprogress', due: '2026-09-23', project: '门户内容', priority: 'P1', assigneeId: 'yue.sun' },
-  { key: 'OPS-462', title: '部门公告模板规范化', status: 'review', due: '2026-10-04', project: '公告中心', priority: 'P2', assigneeId: 'yue.sun' },
+  { key: 'OPS-455', title: '门户内容运营台改版', status: 'inprogress', start: '2026-09-18', due: '2026-09-23', project: '门户内容', priority: 'P1', assigneeId: 'yue.sun' },
+  { key: 'OPS-462', title: '部门公告模板规范化', status: 'review', start: '2026-10-01', due: '2026-10-04', project: '公告中心', priority: 'P2', assigneeId: 'yue.sun' },
+  // —— v0.5 追加：W6~W8 资源占用样本（due 均 > WORK_WINDOW_END，不影响 getPersonWork）——
+  { key: 'DS-3130', title: '设计令牌 v2 灰度收尾', status: 'inprogress', start: '2026-10-19', due: '2026-10-23', project: '设计系统', priority: 'P0', assigneeId: 'min.zhou' },
+  { key: 'MEM-2220', title: '会员积分年度结转向导', status: 'todo', start: '2026-10-20', due: '2026-10-25', project: '会员中心', priority: 'P1', assigneeId: 'siyuan.chen' },
+  { key: 'SRE-910', title: '容量水位基线校准', status: 'review', start: '2026-10-19', due: '2026-10-24', project: '可观测平台', priority: 'P1', assigneeId: 'jia.he' },
+  { key: 'POS-1450', title: '门店 POS 大促前全链路压测', status: 'inprogress', start: '2026-10-26', due: '2026-10-30', project: '门店 POS', priority: 'P0', assigneeId: 'wang.lin' },
+  { key: 'EC-2290', title: '大促结算兜底演练', status: 'todo', start: '2026-10-26', due: '2026-10-31', project: '促销中心', priority: 'P1', assigneeId: 'qian.liu' },
+  { key: 'ESL-360', title: '价签固件批量升级', status: 'review', start: '2026-10-27', due: '2026-11-01', project: '电子价签', priority: 'P1', assigneeId: 'tong.wu' },
+  { key: 'SUP-680', title: '补货模型季度回测', status: 'inprogress', start: '2026-10-26', due: '2026-10-30', project: '库存与供应链', priority: 'P1', assigneeId: 'yuan.zheng' },
+  { key: 'DS-3140', title: '设计系统年度盘点', status: 'todo', start: '2026-11-02', due: '2026-11-06', project: '设计系统', priority: 'P1', assigneeId: 'min.zhou' },
+  { key: 'OPS-470', title: '年度内容运营复盘', status: 'review', start: '2026-11-02', due: '2026-11-07', project: '门户内容', priority: 'P1', assigneeId: 'yue.sun' },
+  { key: 'MEM-2230', title: '会员增长年度口径规划', status: 'todo', start: '2026-11-03', due: '2026-11-08', project: '会员中心', priority: 'P2', assigneeId: 'siyuan.chen' },
+  { key: 'SRE-920', title: '年度 SLO 目标修订', status: 'todo', start: '2026-11-03', due: '2026-11-08', project: '可观测平台', priority: 'P2', assigneeId: 'jia.he' },
 ];
 
 /**
@@ -1386,6 +1403,106 @@ export function getPersonWork(personIdOrEmail) {
 
   const ordered = [...sortGroup(inWindow), ...sortGroup(overdue)];
   return { items: ordered.slice(0, 5), total: ordered.length };
+}
+
+/**
+ * OCCUPANCY_WEEKS —— 「未来 8 周」资源占用视图的固定周窗。
+ * ------------------------------------------------------------------
+ * 口径：**周一锚定**，W1 = 2026-09-14 ~ 09-20（已核实 2026-09-14 是周一、
+ *   EVIDENCE_AS_OF(2026-09-17) 是周四，故 W1 含 3 天已过 —— 这是资源视图的正常态）。
+ * 全部为**写死字面量**，与 WORK_WINDOW_END 同一哲学：运行时算日期不可复现，
+ *   本项目已因「不可复现」栽过三次。
+ * 覆盖 2026-09-14 ~ 2026-11-08，恰好 8 周。
+ */
+export const OCCUPANCY_WEEKS = [
+  { i: 0, start: '2026-09-14', end: '2026-09-20', label: 'W1' },
+  { i: 1, start: '2026-09-21', end: '2026-09-27', label: 'W2' },
+  { i: 2, start: '2026-09-28', end: '2026-10-04', label: 'W3' },
+  { i: 3, start: '2026-10-05', end: '2026-10-11', label: 'W4' },
+  { i: 4, start: '2026-10-12', end: '2026-10-18', label: 'W5' },
+  { i: 5, start: '2026-10-19', end: '2026-10-25', label: 'W6' },
+  { i: 6, start: '2026-10-26', end: '2026-11-01', label: 'W7' },
+  { i: 7, start: '2026-11-02', end: '2026-11-08', label: 'W8' },
+];
+
+/**
+ * 周占用档位阈值：count 1 → 'low'，2 → 'mid'，>=3 → 'high'。
+ * 抽成常量便于设计阶段调整（改数字即可，不必动逻辑）。
+ */
+export const OCCUPANCY_TIER_THRESHOLDS = { mid: 2, high: 3 };
+
+/** count → 档位。无占用返回 null（**空态**，不得渲染成「空闲/闲置」字样）。 */
+export function occupancyTierOf(count) {
+  if (!count || count <= 0) return null;
+  if (count < OCCUPANCY_TIER_THRESHOLDS.mid) return 'low';
+  if (count < OCCUPANCY_TIER_THRESHOLDS.high) return 'mid';
+  return 'high';
+}
+
+/**
+ * getPersonOccupancy(personIdOrEmail) —— 「近期工作内容」独占楼层的 8 周资源占用。
+ * ------------------------------------------------------------------
+ * 语义：行 = 任务，列 = 8 周，格 = 该任务是否占用该周（区间**有交集**即算占用）；
+ *   totals = 每周被多少条任务占用，映射到三档（low/mid/high）。
+ * 与 getPersonWork 的区别：**不截断**（不再限 5 条）—— 截断会让 totals 自相矛盾；
+ *   且**不按 WORK_WINDOW 过滤**，因为它是未来 8 周视图，右界到 2026-11-08。
+ * 排序延续三级口径 due↑ → priority↓ → key↑（全序、无随机）。
+ * 纯函数、无副作用、确定性：同输入必得同输出，不依赖当前时间。
+ */
+export function getPersonOccupancy(personIdOrEmail) {
+  const key = String(personIdOrEmail || '').toLowerCase();
+  const P_ORDER = { P0: 0, P1: 1, P2: 2 };
+  const overlap = (aS, aE, bS, bE) => aS <= bE && bS <= aE; // 字符串比较即日期比较（同为 YYYY-MM-DD）
+
+  const mine = JIRA_ISSUES.filter((i) => i.assigneeId === key && i.status !== 'done');
+
+  const rows = mine
+    .map((i) => ({
+      key: i.key,
+      title: i.title,
+      status: i.status,
+      priority: i.priority,
+      project: i.project,
+      start: i.start,
+      due: i.due,
+      weekIdx: OCCUPANCY_WEEKS.filter((w) => overlap(i.start, i.due, w.start, w.end)).map((w) => w.i),
+      overdue: i.due < WORK_WINDOW_AS_OF,
+    }))
+    .sort((a, b) => {
+      if (a.due !== b.due) return a.due < b.due ? -1 : 1;
+      const pa = P_ORDER[a.priority] == null ? 9 : P_ORDER[a.priority];
+      const pb = P_ORDER[b.priority] == null ? 9 : P_ORDER[b.priority];
+      if (pa !== pb) return pa - pb;
+      return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+    });
+
+  const totals = OCCUPANCY_WEEKS.map((w) => {
+    const count = rows.filter((r) => r.weekIdx.includes(w.i)).length;
+    return { i: w.i, count, tier: occupancyTierOf(count) };
+  });
+
+  /* v0.5.1：把「行」分成两拨（独立评审 P1 + 数据实测）。
+     实测：全量在办任务里有且仅有 2 条整段都落在窗口开始日（2026-09-14）之前 ——
+       siyuan.chen 的 MEM-2160（09-05~09-10）、jia.he 的 SRE-860（09-03~09-08）。
+     它们的 weekIdx = []，在甘特里会渲成「有任务名、8 格全空」的一行：看起来像渲染 bug，
+     还让楼层头的计数虚高（把「全在办」当成了「窗口内占用」）。
+     处理口径：
+       · rows 保持**全量**（totals 的唯一来源 → 口径不变、可审计；也保住「不截断」纪律）；
+       · 另给 inWindow（真正与这 8 周有交集的行，供甘特渲染）+ outside（被排除的条数）；
+       · UI 必须把 outside 明示出来（**不静默丢弃**），且**不得把 due 硬拉进窗口** ——
+         start/due 是 Jira 事实，虚构占用比漏显更糟。
+     与文件头「逾期照常进甘特」的裁定不冲突：那条说的是**区间与窗口有交集**的逾期任务
+     （如 DS-3080，due 09-15 落在 W1 内）；此处排除的是**完全不占用任何一周**的任务，
+     把它藏掉不会让任何一周的占用被低估。 */
+  const inWindow = rows.filter((r) => r.weekIdx.length > 0);
+  return {
+    personId: key,
+    weeks: OCCUPANCY_WEEKS,
+    rows,
+    inWindow,
+    outside: rows.length - inWindow.length,
+    totals,
+  };
 }
 
 /** 按加权分 → 档位：0→none / 1–2→emerging / 3–5→established / ≥6→authoritative */
@@ -1513,8 +1630,15 @@ export function getPersonProfile(personIdOrEmail) {
     person,
     tags,
     contributions,
-    // v0.4.3：近期工作（前瞻态）——「一个函数拿全个人页数据」。
+    // v0.4.3：近期工作（前瞻态，列表形态，截断 5 条）——「一个函数拿全个人页数据」。
+    //   v0.5 起**个人页不再渲染它**（工作楼层已改为 8 周资源占用甘特）。
+    //   保留理由：①「一个函数拿全个人页数据」的契约不破；② 它是被实测覆盖的口径，
+    //     删掉就等于把一个已验证口径从代码里抹掉（且 getPersonWork 会变成死导出）。
+    //   代价：每次读个人页多算一次小数组（可忽略）。若将来确认无用，再连同 getPersonWork 一并删。
     work: getPersonWork(key),
+    // v0.5：8 周资源占用（独占楼层甘特的唯一数据源）。与 work 的关键差异：
+    //   **不截断**、**不按 WORK_WINDOW 过滤**（右界到 2026-11-08）、含逾期未完结任务。
+    occupancy: getPersonOccupancy(key),
   };
 }
 

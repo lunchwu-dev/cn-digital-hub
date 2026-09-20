@@ -67,10 +67,16 @@ Desktop.ini
 .wbapp_*.genie
 .wbapp_*
 
-# ── 变异自证运行期产物（tests/mutation.cjs）────────────
+# ── 变异自证运行期产物（tests/mutation.cjs / mutation.sh）──
 # 备份目录与并发锁只在运行时存在，跑完会自清；忽略以防中断残留
 portal/tests/.mutation-backup/
 portal/tests/.mutation.lock
+# v0.5.1：变异编排改为 Bash 驱动器后，_mut_snapshot.cjs 会把 8 个目标源文件
+#   快照到 tests/.mutbase/ 供 apply→restore 往返使用。它是**运行期副本**（含 src 全文），
+#   不是源码，必须忽略。
+portal/tests/.mutbase/
+# 同上：apply/restore 的沙盒往返验证用临时目录
+portal/tests/.tmp_mutcheck/
 
 # ── portal 下的验证脚本与运行期输出 ────────────────────
 # 约定：portal/ 根目录（不含 src/ tests/）中 **下划线或纯小写单字母开头** 的
@@ -90,10 +96,23 @@ portal/tests/.mutation.lock
 # src 下的临时状态快照（验证时导出，非源码）
 /portal/src/_*.txt
 
-# tests 下的一次性探针（正式套件是 smoke.cjs / shots.cjs / mutation.cjs）
+# tests 下的一次性探针（正式套件是 smoke.cjs / shots.cjs / mutation.cjs / mutation.sh）
 /portal/tests/_*.cjs
 /portal/tests/_*.mjs
 /portal/tests/_*.txt
+
+# ★ 例外：上面那条 `/portal/tests/_*.cjs` 会连带忽略**变异套件的加载路径** ——
+#   `tests/mutation.cjs`（已入库）会 require `_mutations.data.cjs`，`mutation.sh`
+#   会调用 `_mut_*.cjs` 与 `_geom_gantt*.cjs`。它们不是一次性探针，而是套件的组成部分：
+#   若不入库，clone 下来的仓库里 mutation.cjs 直接 MODULE_NOT_FOUND、
+#   mutation.sh 少叶子脚本跑不起来 —— 等于把变异自证整体弄坏。
+#   故逐个显式反忽略（git 的 `!` 对**文件**模式有效；父目录未被整体排除，故可用）。
+!/portal/tests/_mutations.data.cjs
+!/portal/tests/_mut_apply.cjs
+!/portal/tests/_mut_restore.cjs
+!/portal/tests/_mut_snapshot.cjs
+!/portal/tests/_geom_gantt.cjs
+!/portal/tests/_geom_gantt_nospawn.cjs
 
 # ── CDP 调试用 Chrome 用户目录（体积大、纯缓存）──────────
 /portal/_cdp_profile*/

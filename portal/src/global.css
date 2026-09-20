@@ -43,6 +43,24 @@
 
 :root {
   --dp-font-mono: 'Roboto Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  /* ==========================================================================
+     v0.5 · 8 周资源甘特 · 占用色令牌（**别名型**：值全部来自 theme.js 现有 token）
+     —— 这是本文件第二处变量组，是一次**有意的、最小的例外**（§B.2 裁决「颜色一律用字面量」
+        在甘特这里不适用：60+ 个格若逐格 inline 填色，「档位→颜色」的映射会散进 JSX）。
+     —— 值来源（**零新色值**）：
+          page→#F5F4F5 / brandStep1→#DCE0F4 / brandStep2→#A9B2E6 /
+          brandStep3→#6B78D4 / brand→#3643BA / border→#E1E0DF
+     —— ❗严禁改这些值以「加强对比」：三档是同色阶，动任一值都会破坏档位连续性。
+        浅端对比度低（档1 对白底仅 1.31:1）是已知项，可访问性由「格内数字」主通道承担，
+        不靠改色解决（见 v05-design-tokens §3.2）。
+     ========================================================================== */
+  --dp-gantt-slot: #f5f4f5;  /* 空槽（该周 0 项）  = c.page        */
+  --dp-gantt-l1: #dce0f4;    /* 占用 · 轻（1 项）  = c.brandStep1 */
+  --dp-gantt-l2: #a9b2e6;    /* 占用 · 中（2 项）  = c.brandStep2 */
+  --dp-gantt-l3: #6b78d4;    /* 占用 · 高（≥3 项） = c.brandStep3 */
+  --dp-gantt-bar: #3643ba;   /* 任务行占用条       = c.brand      */
+  --dp-gantt-line: #e1e0df;  /* 格线 / 表头竖线    = c.border     */
 }
 
 html,
@@ -467,6 +485,140 @@ body {
   flex-wrap: wrap;
   gap: 10px;
   align-items: flex-start;
+}
+
+/* ==========================================================================
+   v0.5 · 糅合楼层（个人信息 + 技能标签 = 同一张卡）
+   --------------------------------------------------------------------------
+   两带结构：上带 .dp-person-head-main（身份）/ 1px 实线 / 下带 .dp-floor-tags（标签）。
+   为何用 1px 实线而不是留白间隔：两带同属**一个楼层**，实线表达「同一张卡、两个分区」；
+   纯留白会被读成「两张独立卡」，反而削弱糅合语义。
+   面板自身 padding 归零，由两带各自管理（避免双重内边距）。
+   ========================================================================== */
+.dp-floor-merged {
+  padding: 0;
+}
+
+/* ==========================================================================
+   v0.5 · 8 周资源占用甘特
+   --------------------------------------------------------------------------
+   语义：行 = 任务，列 = 8 周，格 = 该任务本周是否在办（区间有交集即算）。
+   ★ 横向滚动**只允许**发生在 .dp-gantt-scroll 内；body / .dp-shell 不得横向溢出。
+   ★ column-gap:0 —— 让跨周任务的色带无缝相接（这是「连续色带」的实现前提）。
+   ★ row-gap:4   —— 让相邻任务行的色带不粘连成一条竖带。
+   ========================================================================== */
+.dp-gantt-scroll {
+  overflow-x: auto;
+  min-width: 0; /* 关键：防止内容撑破 grid 父级，把滚动限制在本容器内 */
+}
+
+.dp-gantt {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) repeat(8, minmax(44px, 1fr));
+  column-gap: 0;
+  row-gap: 4px;
+  align-items: center;
+  min-width: 512px; /* 160 + 8×44 —— 容器低于此宽即自动出横向滚动条 */
+}
+
+@media (max-width: 1200px) {
+  .dp-gantt {
+    grid-template-columns: minmax(160px, 180px) repeat(8, minmax(44px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .dp-gantt {
+    grid-template-columns: minmax(160px, 160px) repeat(8, minmax(44px, 1fr));
+  }
+}
+
+/* 表头格：两行（W1 / 09-14），独立成格不成带，故每格都带左竖线 */
+.dp-gantt-head {
+  height: 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  box-shadow: inset 1px 0 0 var(--dp-gantt-line);
+}
+
+/* 行首列：窄屏横向滚动时固定，background 必须给，否则后面的格会从任务名下透出 */
+.dp-gantt-rowhead {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #ffffff;
+  min-width: 0;
+  padding-right: 12px;
+}
+
+/* 周格：空槽 28px + 左竖线；占用格由 .is-on 去竖线（保证色带连续）。
+   ★ v0.5.1 修：基底圆角必须为 **0**，圆角只由 .is-band-start / .is-band-end 给两端。
+     原写 border-radius:4px 是错的，且与下方注释、以及
+     `.dp-gantt-cell.is-on.is-band-start.is-band-end{border-radius:4px}`（单周格四角全圆，
+     若基底已是 4px 则该规则纯属冗余 = 反证基底应为 0）直接矛盾。
+     后果有两处，都是真的：
+       ① 一条 4 周的色带会渲成 4 个**首尾相接的药丸**（每个接头处上下各凹 4px），
+          而不是用户选定的「连续色带 / 甘特式横条」——诉求被无声破坏；
+       ② inset 左竖线会沿圆角向内收，空槽的 28px 分隔线两端出现缺口。
+     这个错配此前一直没被发现，因为唯一能量出它的 Chrome 几何门（_geom_gantt 的
+     bandRadiusOk）因本机 spawn EBUSY 从未真正跑过一次 —— 它一跑起来就恒假。 */
+.dp-gantt-cell {
+  height: 28px;
+  border-radius: 0;
+  box-shadow: inset 1px 0 0 var(--dp-gantt-line);
+}
+
+.dp-gantt-cell.is-on {
+  background: var(--dp-gantt-bar);
+  box-shadow: none;
+}
+
+/* 色带两端才给圆角；中间格必须 0（否则一条带会被切成若干「药丸」）。
+   单周任务同时带 is-band-start + is-band-end → 四角全圆。 */
+.dp-gantt-cell.is-band-start {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.dp-gantt-cell.is-band-end {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+.dp-gantt-cell.is-on.is-band-start.is-band-end {
+  border-radius: 4px;
+}
+
+/* 总占用行：基底 = 空槽色，三档由 t-low / t-mid / t-high 覆盖 */
+.dp-gantt-total {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dp-gantt-slot);
+  box-shadow: inset 1px 0 0 var(--dp-gantt-line);
+  border-radius: 4px;
+}
+
+.dp-gantt-total.t-low {
+  background: var(--dp-gantt-l1);
+}
+
+.dp-gantt-total.t-mid {
+  background: var(--dp-gantt-l2);
+}
+
+.dp-gantt-total.t-high {
+  background: var(--dp-gantt-l3);
+}
+
+/* 总占用行与其上方任务区之间的一条水平分隔 */
+.dp-gantt-sep {
+  grid-column: 1 / -1;
+  height: 1px;
+  background: var(--dp-gantt-line);
 }
 
 /* —— 标签体系 · 两处必须写进 global.css 的重排（内联 style 无法被媒体查询覆盖）——
