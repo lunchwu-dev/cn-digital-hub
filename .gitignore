@@ -96,6 +96,11 @@ portal/tests/.tmp_mutcheck/
 # src 下的临时状态快照（验证时导出，非源码）
 /portal/src/_*.txt
 
+# ── Vite 的临时配置副本（每次 build 在项目根生成一个，正常结束会自删）──
+# v0.5.1 实测：构建**中途抛错**时不会自删（本轮因 safe-delete 限流连续失败，
+#   一次就泄漏了 20 个），留在仓库根会污染 git status。直接全局忽略。
+vite.config.js.timestamp-*.mjs
+
 # tests 下的一次性探针（正式套件是 smoke.cjs / shots.cjs / mutation.cjs / mutation.sh）
 /portal/tests/_*.cjs
 /portal/tests/_*.mjs
