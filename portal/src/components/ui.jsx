@@ -6,7 +6,7 @@ import React from 'react';
 import { Flex } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { useT, SEMANTIC } from '../theme';
-import { SKILL_GROUPS } from '../data/mock';
+import { ICONS } from './icons';
 
 /** 语义 / 中性 胶囊徽标 */
 export function Pill({ semantic = 'neutral', children, style, dot = false }) {
@@ -313,275 +313,111 @@ export function StatusDot({ semantic = 'neutral', size = 8 }) {
 }
 
 /* ==========================================================================
-   标签体系三件套：TagChip / MaturityAxis / TagMatrix
-   规范来源：outputs/p2-design-system.md B/C/D 节。
-   约束：零硬编码色值（一律 useT() 取 token）；两轴靠「蓝 vs 灰 + ◈ vs ◇」
-   区分而非新色相；实证度 4 档是品牌蓝单色阶，坚决不做红黄绿。
+   标签体系：TagChip / SystemTier / TagLike / TagMatrix
+   规范来源：outputs/v042-design-tokens.md §1 / §3 / §4。
+   约束：零硬编码色值（一律 useT() 取 token）。
+   v0.4.2：主标签概念退场、自评轨整体退场（单一系统轨）、标签可被同事点赞。
    ========================================================================== */
 
-/** 自评兴趣度 4 级文案（措辞落在「兴趣—投入—意愿」语义域，全程无「擅长/精通/掌握」） */
-const SELF_RATING_COPY = {
-  curious: '有点好奇',
-  following: '持续关注',
-  practicing: '在项目中用过',
-  advocating: '主动投入',
-};
-const SELF_RATING_ORDER = ['curious', 'following', 'practicing', 'advocating'];
-
-/** 实证度 4 档文案与档位序号（v0.4 2.3：none 由「暂无实证」改为「暂无公开贡献」） */
-const EVIDENCE_COPY = {
-  none: '暂无公开贡献',
-  emerging: '有初步产出',
-  established: '有稳定的产出',
-  authoritative: '有沉淀与影响力',
-};
-const EVIDENCE_ORDER = ['none', 'emerging', 'established', 'authoritative'];
-
 /**
- * 主标签几何符（PRIMARY_GLYPH）—— v0.4.1 单树化后的唯一字形。
- * 语义：标记「这个人主动表达过态度的主标签」（primary / selected 分支）。
- * 原 AXIS_GLYPH（domain ◈ / capability ◇）已删除——单树后不存在「轴」，
- * active 默认态不带任何前缀，字形只在 primary / selected 出现。
+ * 系统档位 4 档文案（v0.4.2）。
+ * 语义域统一落在「系统记录 / 沉淀」——**全程无「擅长/精通/掌握」，也无「贡献 / 产出」**
+ * 这类成果评价词（用户第 2、3 条：标签仅来自系统抽取 + 人才盘点，不作能力评价）。
+ * 旧文案「暂无公开贡献 / 有初步产出 / 有稳定的产出 / 有沉淀与影响力」已废弃。
+ *
+ * v0.4.3 用途更新（重要）：
+ *   TIER_COPY 的定位由「**上屏文案**」改为「**悬停提示（title）文案** + **档位语义的单一事实来源**」。
+ *   原因：SystemTier 在个人主页横排标签卡的唯一使用点（ui.jsx `showCopy={false}`）不显示文案
+ *   （132px 窄卡装不下），全站当前调用点均传 false ⇒ 文案不再上屏。
+ *   用户决策：**加悬停提示兜底**——档位条带原生 `title`，hover 即读该档位中文语义，不占屏效但可读。
+ *   故 TIER_COPY **不可删**（它是 title 的数据源，且是「none/emerging/established/authoritative」
+ *   四档中文语义的唯一权威定义）。
  */
-const PRIMARY_GLYPH = '◈';
+const TIER_COPY = {
+  none: '暂无系统记录',
+  emerging: '有初步记录',
+  established: '有稳定记录',
+  authoritative: '有沉淀与影响',
+};
+const TIER_ORDER = ['none', 'emerging', 'established', 'authoritative'];
 
 /**
- * MaturityAxis —— 双轴成熟度条（本体系最关键的组件）
- * 承载「双轴不合成」这一核心决策：自评 = 圆形点阵（主观、可打点），
- * 实证 = 分段胶囊条（客观、系统算）。**形状不同，故物理上不可相加。**
+ * SystemTier —— 系统档位条（v0.4.2 单一系统轨）
+ * ------------------------------------------------------------------
+ * 唯一形态：4 段等分胶囊条（25/50/75/100%），**不按分数比例**——
+ *   按比例会造出「绩效分」的横向比较读法，既有决策保留。
+ * 档位只来自系统派生（系统数据抽取 + 人才盘点）；无自评轨、无点阵、无吹牛态、无收轨态。
  *
  * props:
- *   selfRating      'curious'|'following'|'practicing'|'advocating'
- *   evidenceTier    'none'|'emerging'|'established'|'authoritative'
- *   variant         'compact'（默认，TagMatrix 内）| 'expanded'（个人页主标签）
- *   recentCount     近 12 月证据条数（等宽数字，仅此处 + historicalCount + 3/9）
- *   historicalCount 超窗历史贡献条数（仅 expanded 显示）
- *   latestCount / totalCount  回望计数（'3/9 条' 形式，仅 expanded 显示）
- *   extraText       hover 时原地追加的文案（如「 · 近 12 月 3 条」），不换行
+ *   tier      'none'|'emerging'|'established'|'authoritative'（默认 none）
+ *   count     近 12 月系统记录条数（可选；>0 才渲染计数，避免与「暂无系统记录」重复否定）
+ *   showCopy  是否显示档位文案（默认 true）。
+ *             ⚠️ 当前全站调用点**均传 false**（仅 ui.jsx TagMatrix 一处调用）——文案不上屏，
+ *             语义改由 ①档位条 4 段结构 ②档位条 title 悬停提示 双通道表达。
+ *             该参数保留：反查页未来若接入（宽卡场景）可传 true 恢复上屏文案。
+ *
+ * v0.4.3 新增：档位条容器带原生 `title={copy}`（悬停提示兜底）。
+ *   选择：**无论 showCopy 真假都加 title**（而非只在不显示文案时加）。理由：
+ *     ① 原生 tooltip 零成本；文案在屏时 title 只是复述（不冲突、不重复占位）；
+ *     ② 去掉条件分支 → 更少状态组合、更易维护；
+ *     ③ 与标签名 `title` 的既有做法一致（窄卡截断补偿的统一手感）。
+ *   title 挂在 bar 的 `<span>` 上（width:64px = 4 段总宽），悬停命中面即「整条胶囊」。
  */
-export function MaturityAxis({
-  selfRating = 'curious',
-  evidenceTier = 'none',
-  variant = 'compact',
-  recentCount,
-  historicalCount,
-  latestCount,
-  totalCount,
-  extraText,
-}) {
+export function SystemTier({ tier = 'none', count, showCopy = true }) {
   const c = useT();
-  const expanded = variant === 'expanded';
 
-  const tierIdx = Math.max(0, EVIDENCE_ORDER.indexOf(evidenceTier));
-  // 自评与实证都取「已达成级数」（1..4）
-  const selfIdx = Math.max(0, SELF_RATING_ORDER.indexOf(selfRating)) + 1;
-  const evIdx = tierIdx + 1;
-  // 吹牛态：自评 ≥ practicing（3 级）且实证 0 —— 诚实并列，不隐藏、不惩罚
-  const boast = selfIdx >= 3 && evidenceTier === 'none';
-
-  // —— 尺寸（两档只改尺寸，绝不改语义）——
-  const dotSize = expanded ? 11 : 7;
-  const dotGap = expanded ? 6 : 4;
-  const trackH = expanded ? 8 : 6;
-  const trackW = expanded ? 160 : 64;
-  const segGap = expanded ? 3 : 2;
-  const pointSize = expanded ? 15 : 13;
-  const copySize = expanded ? 15 : 13;
-  // 4 档填充色（单色阶）；空槽用 c.border（读起来像「凹槽」而不是「占位」）
+  const tierIdx = Math.max(0, TIER_ORDER.indexOf(tier));
+  // 4 档填充色（品牌蓝单色阶）；空槽用 c.border（读起来像「凹槽」而不是「占位」）。
   const fillColor = [c.brandStep1, c.brandStep2, c.brandStep3, c.brand][tierIdx] || c.brand;
+  // none 档不点亮任何段 → 四段全是 c.border 空槽，照常渲染（83.5% 实例是 none，
+  // 「统一的空槽」才是不喧哗的默认态；换成虚线条/隐藏反而满屏噪音）。
+  const evIdx = tierIdx + 1;
 
-  // —— 自评圆点阵 ——
-  const dots = (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: dotGap, flex: '0 0 auto' }}>
-      {[1, 2, 3, 4].map((lv) => {
-        const on = lv <= selfIdx;
-        return (
+  // 文案色：none 档用 c.text3（比 emerging 以上更淡一档），形成「低档位更安静」的自然降序。
+  const copyColor = tier === 'none' ? c.text3 : c.text2;
+  const copy = TIER_COPY[tier] || TIER_COPY.none;
+
+  return (
+    <div>
+      {/* L1 档位条：4 段等分，段间透明缝。
+          title 挂在 bar 容器本身（width:64 = 四段总宽）→ 悬停命中「整条胶囊」，读该档位中文语义。
+          这是 v0.4.3「档位文案不上屏但在屏可读」的兜底通道（见 TIER_COPY 注释）。 */}
+      <span
+        title={copy}
+        style={{ display: 'inline-flex', width: 64, height: 6, gap: 2, flex: '0 0 auto' }}
+      >
+        {[1, 2, 3, 4].map((lv) => (
           <span
             key={lv}
             style={{
-              width: dotSize,
-              height: dotSize,
+              flex: '1 1 0',
+              height: '100%',
               borderRadius: 999,
-              boxSizing: 'border-box',
-              // 已达 = 品牌蓝实心；未达 = 空心 + brandBorder 描边（「位置留好但没填」）
-              background: on ? c.brand : 'transparent',
-              border: on ? 'none' : `1.5px solid ${c.brandBorder}`,
+              background: lv <= evIdx ? fillColor : c.border,
             }}
           />
-        );
-      })}
-    </span>
-  );
-
-  // —— 实证分段胶囊条 ——
-  // 4 段等分（25/50/75/100%），不按分数比例（按比例会造出「绩效分」的横向比较读法）。
-  // 段间透明缝；吹牛态改虚线描边空槽（同宽同高，不缩不涨）。
-  const track = boast ? (
-    <span
-      style={{
-        display: 'inline-block',
-        width: trackW,
-        height: trackH,
-        borderRadius: 999,
-        border: `1px dashed ${c.dashedBorder}`,
-        background: 'transparent',
-        boxSizing: 'border-box',
-        flex: '0 0 auto',
-      }}
-    />
-  ) : (
-    <span
-      style={{
-        display: 'inline-flex',
-        width: trackW,
-        height: trackH,
-        gap: segGap,
-        flex: '0 0 auto',
-      }}
-    >
-      {[1, 2, 3, 4].map((lv) => (
-        <span
-          key={lv}
-          style={{
-            flex: '1 1 0',
-            height: '100%',
-            borderRadius: 999,
-            background: lv <= evIdx ? fillColor : c.border,
-          }}
-        />
-      ))}
-    </span>
-  );
-
-  // v0.4 2.3：措辞由「暂无实证」改为「暂无公开贡献」——
-  //   不是「没有实证」，而是「没有**公开**贡献被系统统计到」；也避免与「实证度」名词自我循环。
-  const evidenceCopy = boast ? '仅自评 · 暂无公开贡献' : EVIDENCE_COPY[evidenceTier] || EVIDENCE_COPY.none;
-  const evidenceCopyColor = boast ? c.text3 : c.text2;
-
-  // ★ v0.4 (e) 视觉噪音按 selfIdx 分档（仅改**渲染分支**，不动 :374 的 boast 判定语义）：
-  //   selfIdx <= 2 && tier==='none' → 收轨：不渲染实证行(track)，只留一行极淡 text3 的「暂无公开贡献」。
-  //                                 这类标签本就没声称什么，画一条空槽纯属噪音（噪音主体）。
-  //   selfIdx >= 3 && tier==='none' → 保留完整双行（点阵 + 虚线空槽 + 文案 + 提示行）= 吹牛态，
-  //                                 诚实并列不能消解。
-  //   ⚠️ 「吹牛态」判定仍是 boast（:374），collapse 只是它的补集，二者互斥、不可混淆。
-  const collapse = !boast && evidenceTier === 'none' && selfIdx <= 2;
-
-  // —— 回望计数（仅 expanded，等宽数字，'3/9 条' 形式）——
-  // 严禁用于中文标签名/中文文案：Roboto Mono 无中文字形，会触发回退、破坏「数字 mono」切分。
-  const hasRecall = expanded && totalCount != null;
-  const recall = hasRecall ? (
-    <span className="dp-num" style={{ fontSize: 12, color: c.text3, flex: '0 0 auto' }}>
-      {latestCount}/{totalCount} 条
-    </span>
-  ) : null;
-
-  const recallLine = expanded ? (
-    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-      {recentCount != null ? (
-        <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
-          近 12 月 {recentCount} 条
-        </span>
-      ) : null}
-      {historicalCount != null && historicalCount > 0 ? (
-        <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
-          历史贡献 {historicalCount} 条
-        </span>
-      ) : null}
-      {recall}
-    </div>
-  ) : null;
-
-  // —— 紧凑态：不设行首标签，改置于图形下方 10px ——
-  if (!expanded) {
-    // 收轨态（selfIdx<=2 && tier==='none'）：不渲染实证行(track)，只留一行极淡 text3 文案
-    if (collapse) {
-      return (
-        <div>
-          {/* L2 自评行：点阵 + 文案 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            {dots}
-            <span style={{ fontSize: copySize, color: c.text2, whiteSpace: 'nowrap' }}>{SELF_RATING_COPY[selfRating]}</span>
-          </div>
-          {/* 收轨淡文案：无图形，12px text3（噪音收敛主体） */}
-          <div style={{ marginTop: 4, fontSize: 12, color: c.text3, lineHeight: 1.5, minWidth: 0 }}>暂无公开贡献</div>
-        </div>
-      );
-    }
-    return (
-      <div>
-        {/* L2 自评行：点阵 + 文案 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          {dots}
-          <span style={{ fontSize: copySize, color: c.text2, whiteSpace: 'nowrap' }}>{SELF_RATING_COPY[selfRating]}</span>
-        </div>
-        {/* L3 实证行：条 + 文案（hover 时原地追加 extraText，不换行） */}
+        ))}
+      </span>
+      {/* L2 档位文案 +（可选）近 12 月计数 */}
+      {showCopy ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, minWidth: 0 }}>
-          {track}
           <span
             style={{
-              fontSize: copySize,
-              color: evidenceCopyColor,
+              fontSize: 12,
+              color: copyColor,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               minWidth: 0,
             }}
           >
-            {evidenceCopy}
-            {extraText ? <span style={{ fontSize: 12, color: c.text3 }}>{extraText}</span> : null}
+            {copy}
           </span>
-        </div>
-        {/* L4 一级提示行（仅吹牛态）—— v0.4 2.4：第三人称 + 召回入口（不得出现「你」） */}
-        {boast ? (
-          <div
-            style={{
-              marginTop: 6,
-              paddingTop: 6,
-              borderTop: `1px solid ${c.border}`,
-              fontSize: 11,
-              color: c.text3,
-              lineHeight: 1.5,
-            }}
-          >
-            这项仅有自评，系统暂未找到对应的公开产出。
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  // —— 放大态：两列制（列 1 行首轴标 40px 固定，列 2 图形 + 文案从 x=52 起排）——
-  const rowLabel = (t) => (
-    <span style={{ width: 40, flex: '0 0 auto', fontSize: 10, color: c.text3 }}>{t}</span>
-  );
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {rowLabel('兴趣')}
-        {dots}
-        <span style={{ fontSize: copySize, color: c.text2, whiteSpace: 'nowrap' }}>{SELF_RATING_COPY[selfRating]}</span>
-      </div>
-      {/* 实证行：收轨态（selfIdx<=2 && none）不画图形，只留淡文案；吹牛态/有实证态照常画 track */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-        {rowLabel('实证')}
-        {collapse ? null : track}
-        <span style={{ fontSize: copySize, color: collapse ? c.text3 : evidenceCopyColor, whiteSpace: 'nowrap' }}>
-          {collapse ? '暂无公开贡献' : evidenceCopy}
-        </span>
-      </div>
-      {recallLine}
-      {boast ? (
-        <div
-          style={{
-            marginTop: 8,
-            paddingTop: 8,
-            borderTop: `1px solid ${c.border}`,
-            fontSize: 12,
-            color: c.text3,
-            lineHeight: 1.5,
-          }}
-        >
-          这项仅有自评，系统暂未找到对应的公开产出。
+          {typeof count === 'number' && count > 0 ? (
+            <span className="dp-num" style={{ fontSize: 12, color: c.text3, flex: '0 0 auto' }}>
+              近 12 月 {count} 条
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -589,21 +425,103 @@ export function MaturityAxis({
 }
 
 /**
- * TagChip —— 标签胶囊（v0.4.1 单树：无轴语义）
+ * TagLike —— 标签点赞（同事之间的认可动作）
+ * ------------------------------------------------------------------
+ * 定位：读侧社交信号。点赞不改动被访者的任何字段，也不进入被访者资料；
+ *       它只表达「浏览者认可这个标签」。计数 = 确定性基线(mock) + 本 session 的 +1。
+ *
+ * 【为什么「点赞」不违反「只读第三人称视图」】
+ *   本页「只读」约束的原文（历史）是「无编辑入口、无关注、无『这是我的页面』暗示」，
+ *   它约束两件事：① 不能让浏览者编辑**被访者的**数据；② 不能制造归属暗示。
+ *   点赞两条都不触碰：不写入被访者任何字段；点赞者是浏览者而非页主。
+ *   ⚠️ 「无关注」这一条**已被 v0.4.2 推翻**（用户明确要求点赞），故 PersonProfile.jsx
+ *      文档头注释已同步改写，避免后续维护者依据旧注释判定点赞违规。
+ *
+ * 【状态不持久化 —— 刻意设计】
+ *   liked 是本地 useState，刷新归 false。本项目零后端（file:// 双击可用、零外部请求），
+ *   没有可信的持久化位置。**这不是「状态丢失 bug」，是显式裁定**（规范 §4.2 / §8 R2）。
+ *
+ * 【图标纪律】只用 LikeOutlined（Outlined 线性系列）。**不用 LikeFilled**——
+ *   项目图标纪律禁止实心面版图标（见 icons.jsx 头注）。「已点赞」靠
+ *   ①图标色 & 计数色 → c.brand；②胶囊底 → c.brandSubtle；两者区分状态，不靠线↔面切换。
+ *
+ * props: baseLikes(number, 确定性基线计数) / label(string, 所属标签名, 组装 aria-label) / size(number)
+ */
+export function TagLike({ baseLikes = 0, label = '', size = 14 }) {
+  const c = useT();
+  const [liked, setLiked] = React.useState(false);
+  const [hover, setHover] = React.useState(false);
+  const count = baseLikes + (liked ? 1 : 0);
+
+  // 已点赞：brand 字/图标 + brandSubtle 胶囊底；未点赞 hover：brand 字 + page 底；静止：text3 字。
+  const fg = liked || hover ? c.brand : c.text3;
+  const bg = liked ? c.brandSubtle : hover ? c.page : 'transparent';
+  const Icon = ICONS.LikeOutlined;
+
+  return (
+    <button
+      type="button"
+      className="dp-like"
+      aria-pressed={liked ? 'true' : 'false'}
+      aria-label={liked ? `取消认可「${label}」` : `认可「${label}」`}
+      onClick={(e) => {
+        // ★ 必须：父级标签卡 role=button onClick → go('#/workspace/tags/'+id)，
+        //   不阻断冒泡则点赞会连带跳转反查页。
+        e.stopPropagation();
+        setLiked((v) => !v);
+      }}
+      onKeyDown={(e) => {
+        // ★ 必须：父级标签卡 role=button onKeyDown 也监听 Enter/Space → 跳反查页。
+        //   原生 <button> 会自行把 Enter/Space 转成 click，故本处**不自行 toggle**
+        //   （规范 §4.6 条文 2：重复处理会导致一次 Enter 触发两次 toggle），
+        //   只阻断冒泡，避免键盘操作点赞时连带跳转。
+        e.stopPropagation();
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        height: 22,
+        padding: '0 7px',
+        borderRadius: 999,
+        border: 'none',
+        background: bg,
+        color: fg,
+        fontSize: 12,
+        lineHeight: 1,
+        fontFamily: 'inherit',
+        cursor: 'pointer',
+        flex: '0 0 auto',
+        transition: 'background-color .12s ease, color .12s ease',
+      }}
+    >
+      <Icon style={{ fontSize: size }} />
+      {/* 计数外包 aria-hidden，让 aria-label 独占语义（避免读屏把「2」与「认可」割裂朗读）；
+          计数为 0 时仍显示 0 —— 「0 人认可」是有意义的事实，且隐藏会导致卡片布局跳动。 */}
+      <span className="dp-num" aria-hidden="true">
+        {count}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * TagChip —— 标签胶囊（v0.4.1 单树：无轴语义；v0.4.2：无主标签语义）
  * 不复用 Pill：Pill 的 semantic 绑定「运行状态」语义域，硬塞语义会耦合两套语义系统。
  * 复用既有 .dp-chip 类与 ChannelTag 的中性画法。
  *
- * props: label / primary / status('active'|'deprecated'|'merged')
+ * props: label / status('active'|'deprecated'|'merged')
  *        originLabel（merged 用，显示「原『旧名』」）/ selected / disabled / onClick
- *        axis（**已降级为可选遗留 prop**：传与不传渲染完全一致，不参与任何视觉计算）
  *        单行裁剪由调用方在容器上控制（TagMatrix 内卡片强制单行）
  *
- * 配色纪律（取代原「轴色差」）：默认态统一中性（c.page/c.border/c.text2/400），
- * 品牌蓝只出现在「用户主动表达态度」的场景 —— primary（主标签）、selected（已选）、hover。
+ * 配色纪律：默认态统一中性（c.page/c.border/c.text2/400）；
+ * 品牌蓝只出现在「用户主动表达态度」的场景 —— selected（已选）、hover。
+ * v0.4.2 主标签退场后 **primary 分支与 branchSubtle 底已删**，品牌蓝在本组件内仅服务于 selected。
  */
 export function TagChip({
   label,
-  primary = false,
   status = 'active',
   originLabel,
   selected = false,
@@ -645,7 +563,7 @@ export function TagChip({
   if (status === 'merged') {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
-        <TagChip label={label} primary={primary} selected={selected} disabled={disabled} onClick={onClick} />
+        <TagChip label={label} selected={selected} disabled={disabled} onClick={onClick} />
         {originLabel ? (
           <span
             style={{
@@ -732,37 +650,8 @@ export function TagChip({
     );
   }
 
-  // —— 主标签：brandSubtle 底 + 1.5px brand 描边 + 统一 ◈ 前缀 + 24px 高 + 右侧「主」字标 ——
-  //    不用品牌黄（黄是「时间性标记」语义，主标签是「长期属性」），不反白填充。
-  if (primary) {
-    return (
-      <span
-        role={clickable ? 'button' : undefined}
-        tabIndex={clickable ? 0 : undefined}
-        onClick={clickable ? onClick : undefined}
-        onKeyDown={onKey}
-        className="dp-chip"
-        style={{
-          ...base,
-          height: 24,
-          padding: '0 12px',
-          background: c.brandSubtle,
-          border: `1.5px solid ${c.brand}`,
-          color: c.brand,
-          fontWeight: 500,
-          cursor: clickable ? 'pointer' : 'default',
-          overflow: 'hidden',
-        }}
-      >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {PRIMARY_GLYPH} {label}
-        </span>
-        <span style={{ marginLeft: 4, fontSize: 9, fontWeight: 500, color: c.brand, flex: '0 0 auto' }}>主</span>
-      </span>
-    );
-  }
-
-  // —— 已选：brandStep1 底 + brandBorder 边 + inset brand 环 + 统一 ◈ 前缀 + 后端 × 移除符 ——
+  // —— 已选：brandStep1 底 + brandBorder 边 + inset brand 环 + 后端 × 移除符 ——
+  //    v0.4.2：删去 ◈ 字形前缀（主标签退场，字形失去所指）。
   if (selected) {
     return (
       <span
@@ -784,9 +673,7 @@ export function TagChip({
           overflow: 'hidden',
         }}
       >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {PRIMARY_GLYPH} {label}
-        </span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
         <span style={{ marginLeft: 2, fontSize: 12, color: c.text3, flex: '0 0 auto' }}>×</span>
       </span>
     );
@@ -818,25 +705,63 @@ export function TagChip({
 }
 
 /**
- * TagMatrix —— 技能标签树容器（v0.4.1 单树）
- * 单 Panel 内按 SKILL_GROUPS 的 7 个一级分组渲染多段树；**只渲染该人有标签的分组**
- * （空组不渲染——个人画像是「展示这个人的能力」，空组只制造噪音）。
- * 组间按 SKILL_GROUPS 顺序；组内按 evidenceTier 降序，同档按 selfRating 降序。
+ * WorkStatusPill —— Jira 任务状态徽标（v0.4.3「近期工作内容」）
+ * ------------------------------------------------------------------
+ * 收口「status 枚举 → 上屏中文 + Pill semantic」，禁止在卡片里散写三元。
+ * 4 态数据 → 3 态视觉：**blocked 不上屏**（返回 null），见下。
  *
- * props: tags[{ tag, selfRating, evidenceTier, recentCount, historicalCount }]
- *        empty（bool，整人无标签）/ onTagClick(tagId)
+ * 【为什么 blocked 不上屏（设计系统专家的核心取舍，我方认同并落地）】
+ *   ① 它是唯一「负面」态，出现在个人主页这个语境（人名正上方）会被读成人格判断
+ *      （「这个人卡住了」），触碰全站铁律「不作为绩效评价」的软边界；
+ *   ② 对「他在做什么 / 什么时候好」两个同事真正关心的问题零贡献；
+ *   ③ 与 todo/inprogress/review 不同质（那是流程进度轴，blocked 是轴的断裂）。
+ *   → 留空 = 「该状态不适合在此语境展示」，诚实且无伤害。
+ *
+ * 【纪律】纯文字 Pill：**不传 dot**（点阵已被 StatusDot 服务状态占用）、**不加图标**。
+ * 未知 status 兜底 → null（不猜、不显红）。
+ */
+const WORK_STATUS = {
+  todo: { copy: '待办', semantic: 'neutral' },
+  inprogress: { copy: '进行中', semantic: 'info' },
+  review: { copy: '待评审', semantic: 'warning' },
+  blocked: null, // ★ 不上屏
+};
+
+export function WorkStatusPill({ status }) {
+  const m = WORK_STATUS[status];
+  if (!m) return null;
+  return (
+    <Pill semantic={m.semantic} style={{ height: 22, flex: '0 0 auto' }}>
+      {m.copy}
+    </Pill>
+  );
+}
+
+/**
+ * TagMatrix —— 技能标签横向流式楼层（v0.4.3）
+ * ------------------------------------------------------------------
+ * v0.4.2 → v0.4.3 变化：**去分组结构**（用户「技能标签卡片不用分组展示」）。
+ *   删：groupBar（32px 标题条）、buckets 分段、组内 `.dp-grid.dp-g3.dp-grid--tight`。
+ *   改为：单个 `.dp-tag-floor` flex-wrap 容器直接平铺全部标签卡。
+ *   **保留卡内 11px 分组名小字**——它是横排唯一的「类目上下文」与「排序可见性」
+ *   来源（横排顺序仍按 SKILL_GROUPS 组序，保留小字用户才懂「为何这几个挨在一起」）。
+ *   排序由数据层 getPersonProfile 给出（组序 → 档位降序 → 词表索引），此处**不重排**。
+ *
+ * 窄卡纪律（132px，不可拆的组合）：min-width:132px + padding:'10px 12px'
+ *   + SystemTier `showCopy={false}`（132px 装不下「暂无系统记录」）
+ *   + 标签名 `title` 原生 tooltip（截断的补偿）。
  */
 export function TagMatrix({ tags = [], empty = false, onTagClick }) {
   const c = useT();
 
-  // 整人无标签 → 整体替换为 PageEmpty（不渲染任何分组）
+  // 整人无标签 → 整体替换为 PageEmpty（不渲染任何标签卡）
   if (empty || tags.length === 0) {
     return (
       <Panel>
         <PageEmpty
           compact
           title="暂无标签"
-          desc="该成员尚未选择任何标签。标签用于让同事找到你的专长——可在组织速查里发起补充。"
+          desc="该成员暂无可展示的技能标签。技能标签来自系统数据抽取与人才盘点，无需本人登记。"
         />
       </Panel>
     );
@@ -844,47 +769,7 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
 
   const recentTotal = tags.reduce((s, t) => s + (t.recentCount || 0), 0);
 
-  // 按分组归并（只保留有标签的组，按 SKILL_GROUPS 顺序）
-  const tierRank = (tier) => ({ none: 0, emerging: 1, established: 2, authoritative: 3 }[tier] || 0);
-  const ratingRank = (r) => ['curious', 'following', 'practicing', 'advocating'].indexOf(r);
-  const buckets = SKILL_GROUPS.map((g) => ({
-    label: g,
-    list: tags
-      .filter((t) => t.tag && t.tag.group === g)
-      .slice()
-      .sort((a, b) => {
-        const td = tierRank(b.evidenceTier) - tierRank(a.evidenceTier);
-        if (td !== 0) return td;
-        return ratingRank(b.selfRating) - ratingRank(a.selfRating);
-      }),
-  })).filter((b) => b.list.length > 0);
-
-  // 分组标题条：高 32px / cardHeadBg 底 / 6px 圆角 / 13px 500 text2 / 左 padding 10px / 右侧该组数量
-  const groupBar = (label, n, key) => (
-    <div
-      key={key}
-      style={{
-        height: 32,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 8,
-        padding: '0 10px',
-        background: c.cardHeadBg,
-        borderRadius: 6,
-        fontSize: 13,
-        fontWeight: 500,
-        color: c.text2,
-      }}
-    >
-      <span>{label}</span>
-      <span className="dp-num" style={{ fontSize: 11, fontWeight: 400, color: c.text3 }}>
-        {n}
-      </span>
-    </div>
-  );
-
-  // 单张标签卡：标签名（+主标签 ◈ 前缀）+ 分组名（替代旧「领域/能力」角标）+ MaturityAxis 紧凑态
+  // 单张标签卡：标签名 + 点赞 ｜ 分组名小字 ｜ 系统档位条
   const tagCard = (t) => {
     const clickable = typeof onTagClick === 'function';
     const tClick = clickable ? () => onTagClick(t.tag.id) : undefined;
@@ -907,44 +792,45 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
           }
         }}
         style={{
-          padding: '12px 14px',
+          minWidth: 132,
+          padding: '10px 12px',
+          flex: '0 1 auto',
           display: 'flex',
           flexDirection: 'column',
           cursor: clickable ? 'pointer' : 'default',
-          minWidth: 0,
         }}
       >
-        {isLegacy ? (
-          <TagChip label={t.tag.label} status={st} originLabel={t.tag.originLabel} style={{ maxWidth: '100%' }} />
-        ) : (
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 500,
-              color: c.ink,
-              lineHeight: 1.4,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              minWidth: 0,
-            }}
-          >
-            {t.primary ? `${PRIMARY_GLYPH} ` : ''}
-            {t.tag.label}
-          </span>
-        )}
-        {/* 分组名独立一行（11px / text3）——替代旧「领域 / 能力」角标。
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+          {isLegacy ? (
+            <TagChip label={t.tag.label} status={st} originLabel={t.tag.originLabel} style={{ maxWidth: '100%' }} />
+          ) : (
+            <span
+              title={t.tag.label}
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: c.ink,
+                lineHeight: 1.4,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                minWidth: 0,
+              }}
+            >
+              {t.tag.label}
+            </span>
+          )}
+          {/* 点赞：读侧社交信号，置于标签名右端（同一行，卡片宽度不因点赞数变化而跳） */}
+          <TagLike baseLikes={t.likes} label={t.tag.label} />
+        </div>
+        {/* 分组名独立一行（11px / text3）——横排唯一的「类目上下文」与排序可见性来源。
             「业务与场景」「协作与流程」等 5 字组名与标签名同行会挤，故固定独立成行。 */}
         <div style={{ fontSize: 11, color: c.text3, lineHeight: 1.5, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {t.tag.group}
         </div>
         <div style={{ marginTop: 4 }}>
-          <MaturityAxis
-            selfRating={t.selfRating}
-            evidenceTier={t.evidenceTier}
-            variant="compact"
-            recentCount={t.recentCount}
-          />
+          {/* showCopy={false}：窄卡装不下「暂无系统记录」等档位文案（档位条已结构性表达档位） */}
+          <SystemTier tier={t.evidenceTier} count={t.recentCount} showCopy={false} />
         </div>
       </Panel>
     );
@@ -954,24 +840,16 @@ export function TagMatrix({ tags = [], empty = false, onTagClick }) {
     <Panel>
       <PanelHead
         title="技能标签"
-        desc={`${buckets.length} 组 · 共 ${tags.length} 个标签`}
+        desc={`共 ${tags.length} 个标签 · 按技能领域排序`}
         extra={
           <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
-            近 12 月实证 {recentTotal} 条
+            近 12 月记录 {recentTotal} 条
           </span>
         }
       />
-      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {buckets.map((b) => (
-          <div key={b.label}>
-            {groupBar(b.label, b.list.length, b.label)}
-            <div style={{ marginTop: 10 }}>
-              <div className="dp-grid dp-g3 dp-grid--tight" style={{ alignItems: 'start' }}>
-                {b.list.map(tagCard)}
-              </div>
-            </div>
-          </div>
-        ))}
+      <div style={{ padding: 16 }}>
+        {/* 横向流式容器：flex-wrap 让短标签（RAG / 埋点）不被 grid 拉宽，提高屏效 */}
+        <div className="dp-tag-floor">{tags.map(tagCard)}</div>
       </div>
     </Panel>
   );

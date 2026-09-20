@@ -1,33 +1,34 @@
 /**
  * 员工个人主页 —— 路由 #/workspace/people/:id
  * ------------------------------------------------------------------
- * v0.4.1 版面（单树化 + 主页化 + 减法）：
- *   L0 hero  基础信息（头像 + 姓名 + 部门/角色 + 联系）+ 主标签成熟度卡（≤2，放大态）
- *   L1 主栏  技能标签树 + 成熟度（TagMatrix，宽 1.85fr）
- *   L2 辅栏  近期知识贡献（窄 1fr，每条标注它喂养了哪个标签 → 联动）
- * 栅格：新建 .dp-g-profile（不复用 .dp-g-article，避免影响 ArticleDetail）。
- * 只读的第三人称视图：无编辑入口、无关注、无「这是我的页面」暗示。
+ * v0.4.3 版面（三个楼层，自上而下）：
+ *   楼层 1  头像 + 个人信息（hero，通栏单列，**沿用 v0.4.2 不动**）
+ *   楼层 2  技能标签（横向流式楼层 `.dp-tag-floor`，通栏，去分组结构）
+ *   楼层 3  近期工作内容（左 1fr）｜ 近期知识贡献（右 1fr）—— `.dp-g-duo` 等宽两栏
+ * 栅格：楼层 3 用 .dp-g-duo（1fr/1fr）；v0.4.2 的 .dp-g-profile（1.85fr/1fr）已无使用点
+ *   （定义保留以稳住 mutation TARGETS sha，见 global.css 考古注释）。
+ * 只读的第三人称视图：无编辑入口、无「这是我的页面」暗示；
+ *   同事可对标签点赞表示认可（读侧社交信号，不改动被访者资料）。
  *
- * v0.4.1 删除（用户「不用其他内容了」）：能力分布概览（Sparkline）、协作触点（负责的工具）。
- * 底部合规声明保留，但并入标签树 Panel 内作一行脚注。
+ * v0.4.1 删除：能力分布概览（Sparkline）、协作触点（负责的工具）。
+ * v0.4.2 删除：主标签概念整体退场。
+ * v0.4.3 新增：近期工作内容（Jira，前瞻态）；技能标签升为独立楼层 2。
+ * 底部合规声明随技能标签楼层上移，作其下方一行脚注。
  */
 import React from 'react';
-import { Breadcrumb, Button, Typography } from 'antd';
-import { getPersonProfile, personId, TAG_BY_ID } from '../data/mock';
+import { Breadcrumb, Button } from 'antd';
+import { getPersonProfile, TAG_BY_ID } from '../data/mock';
 import { useT } from '../theme';
 import {
   Panel,
   PanelHead,
-  SectionTitle,
   InitialAvatar,
   TagChip,
   TagMatrix,
-  MaturityAxis,
+  WorkStatusPill,
   PageEmpty,
 } from '../components/ui';
 import { go } from '../router';
-
-const { Text } = Typography;
 
 /** 证据类型 → 展示名（中性为主，不与运行状态语义色争抢） */
 const KIND_META = {
@@ -83,6 +84,75 @@ function ContributionItem({ item, isLast }) {
   );
 }
 
+/**
+ * 单条 Jira 任务行（左栏）——严格按规范 §2.2 的逐行 px 规格。
+ * 行 1：Jira 单号 + 状态 Pill + 任务名（单行 ellipsis）
+ * 行 2：项目/迭代（左，单行 ellipsis） + 预期交付（右，等宽；逾期仅染日期数字）
+ *
+ * ★ 纪律（team-lead 加严）：
+ *   ① blocked 任务**整行照常渲染**（单号 / 任务名 / 项目 / 日期都在），只是状态位留空
+ *      （WorkStatusPill 返回 null）——绝不因状态位为空而吞掉整行；
+ *   ② 逾期只染日期数字本身（c.warningText，满足 AA 对比度），不染整行、不加背景、不加图标；
+ *   ③ 整块**不可点**：无 role / 无 tabIndex / 无 cursor:pointer / 无 <a href>（规范 §5 第 7 条）。
+ */
+function WorkItem({ item, isLast }) {
+  const c = useT();
+  // 逾期日期色选 c.warningText（#8A5200，约 6.3:1）而非 c.warning（#E8890C，约 3.1:1）：
+  //   日期是「辅助数字着色」，但既然两选项均可，选满足正文 AA 的那个更稳（规范 §2.5 第二选项）。
+  const dueColor = item.overdue ? c.warningText : c.text3;
+  return (
+    <div
+      style={{
+        padding: '10px 12px',
+        borderBottom: isLast ? 'none' : `1px solid ${c.border}`,
+      }}
+    >
+      {/* 行 1：Jira 单号 + 状态 Pill + 任务名 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, minWidth: 0 }}>
+        <span className="dp-num" style={{ fontSize: 12, color: c.text3, flex: '0 0 auto', letterSpacing: 0 }}>
+          {item.key}
+        </span>
+        {/* blocked → null：状态位留空，但整行（单号/任务名/项目/日期）照常渲染 */}
+        <WorkStatusPill status={item.status} />
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: c.ink,
+            lineHeight: 1.5,
+            flex: '1 1 auto',
+            minWidth: 0,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {item.title}
+        </span>
+      </div>
+      {/* 行 2：项目/迭代（左） + 预期交付（右） */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+        <span
+          style={{
+            fontSize: 12,
+            color: c.text3,
+            flex: '1 1 auto',
+            minWidth: 0,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {item.project}
+        </span>
+        <span className="dp-num" style={{ fontSize: 12, color: dueColor, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
+          {item.due}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function PersonProfile({ id }) {
   const c = useT();
   const profile = getPersonProfile(id);
@@ -92,7 +162,7 @@ export default function PersonProfile({ id }) {
       <div className="dp-shell">
         <PageEmpty
           title="没有找到这位成员"
-          desc={`成员「${id || '未知'}」不存在，可能已离开部门或链接已失效。可回到组织速查按姓名与专长检索。`}
+          desc={`成员「${id || '未知'}」不存在，可能已离开部门或链接已失效。可回到组织速查按姓名与技能标签检索。`}
           extra={
             <>
               <Button type="primary" onClick={() => go('#/org')}>
@@ -106,9 +176,10 @@ export default function PersonProfile({ id }) {
     );
   }
 
-  const { person, tags, contributions } = profile;
-  const primaries = tags.filter((t) => t.primary);
+  const { person, tags, contributions, work } = profile;
   const recentContribs = contributions.slice();
+  const workItems = (work && work.items) || [];
+  const workTotal = (work && work.total) || 0;
 
   return (
     <div className="dp-shell">
@@ -133,104 +204,91 @@ export default function PersonProfile({ id }) {
         ]}
       />
 
-      {/* L0 · Hero（通栏）：左侧人信息 + 右侧主标签成熟度卡（≤2，放大态） */}
+      {/* 楼层 1 · 头像 + 个人信息（通栏，单列）—— 沿用 v0.4.2 不动 */}
       <Panel className="dp-person-head" style={{ padding: '24px 28px' }}>
-        <div className="dp-person-head-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 24, flexWrap: 'wrap' }}>
-          <div className="dp-person-head-main" style={{ display: 'flex', alignItems: 'center', gap: 18, flex: '1 1 320px', minWidth: 0 }}>
-            <InitialAvatar name={person.name} size={64} fontSize={23} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 24, fontWeight: 500, color: c.ink, lineHeight: 1.25, letterSpacing: '-0.01em' }}>
-                {person.name}
-              </div>
-              <div style={{ fontSize: 14, color: c.text2, lineHeight: 1.5, marginTop: 6 }}>
-                {person.dept} · {person.role}
-              </div>
-              <div style={{ fontSize: 13, color: c.text3, lineHeight: 1.5, marginTop: 3 }}>
-                {person.location} · <span className="dp-mono">{person.email}</span>
-              </div>
+        <div className="dp-person-head-main" style={{ display: 'flex', alignItems: 'center', gap: 18, flex: '0 1 auto', minWidth: 0 }}>
+          <InitialAvatar name={person.name} size={64} fontSize={23} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 24, fontWeight: 500, color: c.ink, lineHeight: 1.25, letterSpacing: '-0.01em' }}>
+              {person.name}
+            </div>
+            <div style={{ fontSize: 14, color: c.text2, lineHeight: 1.5, marginTop: 6 }}>
+              {person.dept} · {person.role}
+            </div>
+            <div style={{ fontSize: 13, color: c.text3, lineHeight: 1.5, marginTop: 3 }}>
+              {person.location} · <span className="dp-mono">{person.email}</span>
             </div>
           </div>
-          {/* 主标签 ≤2，右对齐（放大态 MaturityAxis）——hero 是精选，不是全部标签的预览 */}
-          {primaries.length ? (
-            <div
-              className="dp-person-head-tags"
-              style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', flex: '0 1 320px', minWidth: 0 }}
-            >
-              <span style={{ fontSize: 11, color: c.text3 }}>主标签</span>
-              {primaries.slice(0, 2).map((t) => (
-                <div
-                  key={t.tag.id}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                    padding: '10px 12px',
-                    border: `1px solid ${c.border}`,
-                    borderRadius: 8,
-                    background: c.surface,
-                    minWidth: 200,
-                    maxWidth: 320,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontSize: 15, fontWeight: 500, color: c.ink }}>{t.tag.label}</span>
-                    <span style={{ fontSize: 11, color: c.text3, flex: '0 0 auto' }}>{t.tag.group}</span>
-                  </div>
-                  <MaturityAxis
-                    selfRating={t.selfRating || 'curious'}
-                    evidenceTier={t.evidenceTier}
-                    variant="expanded"
-                    recentCount={t.recentCount}
-                    historicalCount={t.historicalCount}
-                    latestCount={t.recentCount}
-                    totalCount={t.totalCount}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : null}
         </div>
       </Panel>
 
-      {/* L1 + L2 · 主体两栏：技能标签树（宽）｜近期知识贡献（窄） */}
-      <div className="dp-grid dp-g-profile" style={{ gap: 24, alignItems: 'start', marginTop: 20 }}>
-        <div>
-          <TagMatrix
-            tags={tags}
-            empty={tags.length === 0}
-            onTagClick={(tagId) => go('#/workspace/tags/' + tagId)}
-          />
-          {/* 合规声明：并入标签树下方作脚注（不再是独立区块） */}
-          <div style={{ marginTop: 10, fontSize: 12, color: c.text3, lineHeight: 1.7 }}>
-            本页为只读视图 · 标签用于让同事找到你的专长，实证度由系统按公开贡献核算，不作为绩效评价。
-          </div>
+      {/* 楼层 2 · 技能标签（横向流式楼层，通栏）*/}
+      <div className="dp-floor-tags" style={{ marginTop: 20 }}>
+        <TagMatrix
+          tags={tags}
+          empty={tags.length === 0}
+          onTagClick={(tagId) => go('#/workspace/tags/' + tagId)}
+        />
+        {/* 合规声明：并入技能标签楼层下方作脚注 */}
+        <div style={{ marginTop: 10, fontSize: 12, color: c.text3, lineHeight: 1.7 }}>
+          本页为只读视图（同事可对标签点赞表示认可）· 技能标签来自系统数据抽取与公司人才盘点，由系统自动生成，无需本人登记，也不作为绩效评价。
         </div>
+      </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Panel style={{ overflow: 'hidden' }}>
-            <PanelHead
-              title="近期知识贡献"
-              desc="每条都标注它喂养了哪个标签"
-              extra={
-                <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
-                  {recentContribs.length} 条
-                </span>
-              }
-            />
-            {recentContribs.length ? (
-              <div>
-                {recentContribs.map((item, i) => (
-                  <ContributionItem key={item.key} item={item} isLast={i === recentContribs.length - 1} />
-                ))}
-              </div>
-            ) : (
-              <div style={{ padding: '20px 16px', fontSize: 13, color: c.text3, lineHeight: 1.7 }}>
-                暂无公开知识贡献。标签的实证度来自最佳实践、文章、项目动态、公告与 Release 的署名，
-                由系统自动核算。
-              </div>
-            )}
-          </Panel>
-        </div>
+      {/* 楼层 3 · 近期工作内容（左）｜ 近期知识贡献（右），等宽两栏 */}
+      <div className="dp-grid dp-g-duo" style={{ gap: 24, alignItems: 'start', marginTop: 20 }}>
+        {/* 左栏 · 近期工作内容（Jira 前瞻态） */}
+        <Panel className="dp-floor-work" style={{ overflow: 'hidden' }}>
+          <PanelHead
+            title="近期工作内容"
+            desc="来自 Jira 的负责人字段 · 当前至未来 1 个月"
+            extra={
+              <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
+                {workTotal > 5 ? `${workTotal} 条 · 显示近 5` : `${workTotal} 条`}
+              </span>
+            }
+          />
+          {workItems.length ? (
+            <div>
+              {workItems.map((item, i) => (
+                <WorkItem key={item.key} item={item} isLast={i === workItems.length - 1} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '20px 16px', fontSize: 13, color: c.text3, lineHeight: 1.7 }}>
+              暂无在办任务。任务数据来自 Jira 的负责人字段，仅展示当前至未来 1 个月的排期。
+            </div>
+          )}
+          {/* 数据来源脚注：语气与技能标签的来源说明一致 */}
+          <div style={{ padding: '10px 16px', borderTop: `1px solid ${c.border}`, fontSize: 12, color: c.text3, lineHeight: 1.7 }}>
+            任务来自 Jira 的负责人字段，仅作协作参考，不作为绩效评价。
+          </div>
+        </Panel>
+
+        {/* 右栏 · 近期知识贡献 */}
+        <Panel className="dp-floor-contrib" style={{ overflow: 'hidden' }}>
+          <PanelHead
+            title="近期知识贡献"
+            desc="每条都标注它喂养了哪个标签"
+            extra={
+              <span className="dp-num" style={{ fontSize: 12, color: c.text3 }}>
+                {recentContribs.length} 条
+              </span>
+            }
+          />
+          {recentContribs.length ? (
+            <div>
+              {recentContribs.map((item, i) => (
+                <ContributionItem key={item.key} item={item} isLast={i === recentContribs.length - 1} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '20px 16px', fontSize: 13, color: c.text3, lineHeight: 1.7 }}>
+              暂无近期知识贡献。技能标签的档位来自最佳实践、文章、项目动态、公告与 Release 的署名，
+              以及人才盘点结果，由系统自动核算。
+            </div>
+          )}
+        </Panel>
       </div>
     </div>
   );

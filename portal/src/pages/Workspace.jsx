@@ -13,9 +13,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Input, Button, Space, Table, Modal, Form, Select, App as AntApp, Typography } from 'antd';
 import { SearchOutlined, KeyOutlined, ClockCircleOutlined } from '@ant-design/icons';
-import { toolGroups, orgPeople, personId, META } from '../data/mock';
+import { toolGroups, orgPeople, personId, META, TAG_BY_ID, resolveTagIds } from '../data/mock';
 import { useT } from '../theme';
-import { Panel, Pill, ContentMeta, SectionTitle, InitialAvatar, StatusDot } from '../components/ui';
+import { Panel, Pill, ContentMeta, SectionTitle, InitialAvatar, StatusDot, TagChip } from '../components/ui';
 import { go } from '../router';
 import { IconByName } from '../components/icons';
 
@@ -211,14 +211,12 @@ export function OrgView() {
     { title: '团队', dataIndex: 'dept', width: 168, render: (v) => <span style={{ color: c.text2 }}>{v}</span> },
     { title: '角色', dataIndex: 'role', width: 156, render: (v) => <span style={{ color: c.ink }}>{v}</span> },
     {
-      title: '专长 / 关注',
+      title: '技能标签',
       dataIndex: 'tags',
       render: (tags) => (
         <Space size={[6, 6]} wrap>
-          {(tags || []).map((t) => (
-            <Pill key={t} semantic="neutral">
-              {t}
-            </Pill>
+          {resolveTagIds(tags).map((id) => (
+            <TagChip key={id} label={TAG_BY_ID[id].label} />
           ))}
         </Space>
       ),
@@ -238,7 +236,7 @@ export function OrgView() {
         <Input
           allowClear
           prefix={<SearchOutlined style={{ color: c.text3 }} />}
-          placeholder="按姓名 / 团队 / 专长检索，例如「门店」「SSO」"
+          placeholder="按姓名 / 团队 / 技能标签检索，例如「门店」「SSO」"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           style={{ maxWidth: 380 }}

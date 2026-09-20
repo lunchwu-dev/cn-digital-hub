@@ -895,7 +895,7 @@ export const TAG_DICT = [
   /* —— 分组 5 · 业务与场景 —— */
   { id: 'd-pos', label: '门店 POS', group: '业务与场景', status: 'active', aliases: ['POS'] },
   { id: 'd-selfcheckout', label: '自助结账', group: '业务与场景', status: 'active', aliases: [] },
-  { id: 'd-esl', label: '电子价签', group: '业务与场景', status: 'active', aliases: ['价签'] },
+  { id: 'd-esl', label: '电子价签', group: '业务与场景', status: 'active', aliases: ['价签', '设备'] },
   { id: 'd-member', label: '会员增长', group: '业务与场景', status: 'active', aliases: ['会员'] },
   { id: 'd-points', label: '会员积分', group: '业务与场景', status: 'active', aliases: ['积分'] },
   { id: 'd-miniapp', label: '会员小程序', group: '业务与场景', status: 'active', aliases: ['小程序'] },
@@ -943,6 +943,41 @@ export const TAG_BY_ID = TAG_DICT.reduce((m, t) => {
   m[t.id] = t;
   return m;
 }, {});
+
+/**
+ * ALIAS_TO_TAG —— label / aliases → tagId 的反查表（唯一事实来源）。
+ * collectEvidence 与组织速查表（Workspace.jsx）共用同一张表，
+ * 保证「贡献条目归类」与「成员标签展示」用同一套词表解析口径。
+ */
+const ALIAS_TO_TAG = TAG_DICT.reduce((m, t) => {
+  m[t.label] = t.id;
+  (t.aliases || []).forEach((a) => {
+    m[a] = t.id;
+  });
+  return m;
+}, {});
+
+/**
+ * resolveTagId(word) —— 把自由字符串（如 '设计规范'、'设备'）解析为词表标签 id。
+ * 命中返回 id，未命中返回 null。**绝不返回词表外裸字符串**（规范 §1.5 R1 纪律）。
+ */
+export function resolveTagId(word) {
+  const hit = ALIAS_TO_TAG[String(word == null ? '' : word).trim()];
+  return hit && TAG_BY_ID[hit] ? hit : null;
+}
+
+/**
+ * resolveTagIds(words[]) —— 批量解析并按词表顺序去重，返回 tagId 数组。
+ * 供组织速查表渲染「系统标签名」用（渲染层再经 TAG_BY_ID 取 label）。
+ */
+export function resolveTagIds(words) {
+  const ids = new Set();
+  (words || []).forEach((w) => {
+    const id = resolveTagId(w);
+    if (id) ids.add(id);
+  });
+  return Array.from(ids);
+}
 
 /**
  * SKILL_GROUPS —— 技能标签树的 7 个一级分组（渲染顺序，不可改）。
@@ -994,134 +1029,117 @@ export const EVIDENCE_WEIGHTS = {
 };
 
 /**
- * 双轴成熟度 · 自评兴趣度（4 级，措辞落在「兴趣—投入—意愿」语义域）
- */
-export const SELF_RATINGS = ['curious', 'following', 'practicing', 'advocating'];
-
-/**
- * personTags —— 人 × 标签 × 自评级别。
- * 遵守上限：领域 ≤5 / 能力 ≤4 / 合计 ≤9 / 主标签 ≤3。
- * 刻意保留两位「吹牛态」（自评 practicing/advocating 且实证 0）用于展示诚实标记。
+ * personTags —— 人 × 标签（值恒为 true，仅表示「此人有此标签」）。
+ * 遵守上限：合计 ≤9。技能标签仅来自系统数据抽取与人才盘点，无「主标签」概念。
+ *
+ * v0.4.2：自评轨整体退场（用户「不需要持续关注和公开贡献这个板块」）——值不再承载自评档，
+ * 统一改为 true。**保留 key 结构而非改造成数组**：`Object.keys()` 的消费点有 4 处
+ * （getPersonProfile / peopleWithTag / TagBrowse 的 PEOPLE_BY_TAG / TagBrowse 结果行），
+ * 改结构会牵动 4 处无关改动面，收益为零。true 是零成本的中性占位。
  */
 export const personTags = {
   'min.zhou': {
     // 设计系统负责人：标签更新于 2026-09-16
-    'd-design-system': 'advocating',
-    'd-portal': 'practicing',
-    'd-content-ops': 'following',
-    'd-docs': 'practicing',
-    'c-spec': 'advocating',
-    'c-ux': 'practicing',
-    'c-visual': 'following',
-    'c-product': 'following',
+    'd-design-system': true,
+    'd-portal': true,
+    'd-content-ops': true,
+    'd-docs': true,
+    'c-spec': true,
+    'c-ux': true,
+    'c-visual': true,
+    'c-product': true,
   },
   'siyuan.chen': {
-    'd-member': 'advocating',
-    'd-points': 'following',
-    'd-miniapp': 'practicing',
-    'd-crm': 'following',
-    'c-product': 'following',
-    'c-perf': 'following',
-    'c-planning': 'following',
-    'c-analytics': 'following',
+    'd-member': true,
+    'd-points': true,
+    'd-miniapp': true,
+    'd-crm': true,
+    'c-product': true,
+    'c-perf': true,
+    'c-planning': true,
+    'c-analytics': true,
   },
   'wang.lin': {
-    'd-pos': 'advocating',
-    'd-selfcheckout': 'following',
-    'd-store': 'practicing',
-    'd-order': 'following',
-    'd-esl': 'following',
-    'c-architecture': 'following',
-    'c-reliability': 'following',
-    'c-backend': 'following',
+    'd-pos': true,
+    'd-selfcheckout': true,
+    'd-store': true,
+    'd-order': true,
+    'd-esl': true,
+    'c-architecture': true,
+    'c-reliability': true,
+    'c-backend': true,
     // 历史遗留：曾经的「全栈开发」，现已停用 —— 个人页标签矩阵照常渲染（带「已停用」样式，
     // 规范 C.4：历史引用可审计，不静默丢弃）。
-    'c-fullstack': 'following',
+    'c-fullstack': true,
   },
   'qian.liu': {
-    'd-ecommerce': 'advocating',
-    'd-promo': 'practicing',
-    'd-order': 'following',
-    'd-member': 'following',
-    'c-product': 'following',
-    'c-analytics': 'following',
-    'c-research': 'following',
+    'd-ecommerce': true,
+    'd-promo': true,
+    'd-order': true,
+    'd-member': true,
+    'c-product': true,
+    'c-analytics': true,
+    'c-research': true,
   },
   'zhiwei.shen': {
-    'd-dataplatform': 'advocating',
-    'd-tracking': 'following',
-    'd-metrics': 'following',
-    'd-realtime': 'following',
-    'd-warehouse': 'following',
-    'c-data-eng': 'following',
-    'c-metrics-design': 'following',
-    'c-modeling': 'following',
-    'c-analytics': 'following',
+    'd-dataplatform': true,
+    'd-tracking': true,
+    'd-metrics': true,
+    'd-realtime': true,
+    'd-warehouse': true,
+    'c-data-eng': true,
+    'c-metrics-design': true,
+    'c-modeling': true,
+    'c-analytics': true,
   },
   'jia.he': {
-    'd-sso': 'advocating',
-    'd-observability': 'following',
-    'd-stability': 'following',
-    'd-cicd': 'following',
-    'd-grafana': 'following',
-    'c-reliability': 'following',
-    'c-architecture': 'following',
-    'c-security-eng': 'following',
-    'c-cross-team': 'following',
+    'd-sso': true,
+    'd-observability': true,
+    'd-stability': true,
+    'd-cicd': true,
+    'd-grafana': true,
+    'c-reliability': true,
+    'c-architecture': true,
+    'c-security-eng': true,
+    'c-cross-team': true,
   },
   'yuan.zheng': {
-    'd-supply': 'advocating',
-    'd-replenish': 'following',
-    'd-warehouse': 'following',
-    'd-order': 'following',
-    'c-architecture': 'following',
-    'c-reliability': 'following',
-    'c-backend': 'following',
+    'd-supply': true,
+    'd-replenish': true,
+    'd-warehouse': true,
+    'd-order': true,
+    'c-architecture': true,
+    'c-reliability': true,
+    'c-backend': true,
   },
   'tong.wu': {
-    'd-esl': 'advocating',
-    'd-store': 'practicing',
-    'd-pos': 'following',
-    // 刻意吹牛态（第 2 位指定样本，保留 2 个）：自评 practicing 但该标签无任何证据条目
-    'd-realtime': 'practicing',
-    'c-backend': 'following',
-    'c-reliability': 'following',
-    // 刻意吹牛态：自评 practicing 但 c-testing 无任何证据条目
-    'c-testing': 'practicing',
+    'd-esl': true,
+    'd-store': true,
+    'd-pos': true,
+    'd-realtime': true,
+    'c-backend': true,
+    'c-reliability': true,
+    'c-testing': true,
   },
   'yiming.gu': {
-    'd-security': 'advocating',
-    'd-sso': 'following',
-    'd-observability': 'following',
-    'd-demand': 'following',
-    'c-security-eng': 'following',
-    'c-spec': 'following',
-    'c-testing': 'following',
+    'd-security': true,
+    'd-sso': true,
+    'd-observability': true,
+    'd-demand': true,
+    'c-security-eng': true,
+    'c-spec': true,
+    'c-testing': true,
   },
   'yue.sun': {
-    'd-content-ops': 'following',
-    'd-portal': 'following',
-    'd-docs': 'following',
-    'd-design-system': 'following',
-    'd-collab': 'following',
-    'c-content': 'following',
-    'c-ux': 'following',
-    'c-stakeholder': 'following',
+    'd-content-ops': true,
+    'd-portal': true,
+    'd-docs': true,
+    'd-design-system': true,
+    'd-collab': true,
+    'c-content': true,
+    'c-ux': true,
+    'c-stakeholder': true,
   },
-};
-
-/** 主标签（每人 ≤3）：进入反查页一级展示，并在个人页头高亮 */
-export const primaryTags = {
-  'min.zhou': ['d-design-system', 'c-spec'],
-  'siyuan.chen': ['d-member', 'c-product', 'd-miniapp'],
-  'wang.lin': ['d-pos', 'c-architecture'],
-  'qian.liu': ['d-ecommerce', 'c-product'],
-  'zhiwei.shen': ['d-dataplatform', 'd-tracking', 'c-data-eng'],
-  'jia.he': ['d-sso', 'c-reliability'],
-  'yuan.zheng': ['d-supply', 'c-reliability'],
-  'tong.wu': ['d-esl'],
-  'yiming.gu': ['d-security', 'c-security-eng'],
-  'yue.sun': ['d-content-ops', 'c-content'],
 };
 
 /* ---------------------- 证据解算器（D.2 的四步） ---------------------- */
@@ -1160,22 +1178,9 @@ function withinWindow(dateStr) {
  */
 function collectEvidence() {
   const out = [];
-  const aliasesToTag = {};
-  TAG_DICT.forEach((t) => {
-    aliasesToTag[t.label] = t.id;
-    (t.aliases || []).forEach((a) => {
-      aliasesToTag[a] = t.id;
-    });
-  });
-  const mapToTags = (words) => {
-    const ids = new Set();
-    (words || []).forEach((w) => {
-      // v0.4.1 单树化：不再有「轴闸门」——只要命中词表即计入（命中即计入）。
-      const hit = aliasesToTag[String(w || '').trim()];
-      if (hit && TAG_BY_ID[hit]) ids.add(hit);
-    });
-    return Array.from(ids);
-  };
+  // v0.4.2：别名映射表与解析函数提升为模块级导出的 ALIAS_TO_TAG / resolveTagIds
+  // （组织速查表复用同一口径），此处只做调用，不再内联重复一份。
+  const mapToTags = (words) => resolveTagIds(words);
 
   // bestPractices：category 映射。articles 有全文的以 articles 为准（避免重复计分）。
   const articleIds = new Set(Object.keys(articles));
@@ -1269,6 +1274,120 @@ export function departmentEvidenceCount() {
   return ALL_EVIDENCE.length;
 }
 
+/* ======================================================================
+   v0.4.3 · Jira 近期工作（前瞻数据）
+   ----------------------------------------------------------------------
+   形态：**独立扁平表 + 按人聚合**，沿用 ALL_EVIDENCE 已验证的先例。
+   ⚠️ 关键纪律（避开 ALL_EVIDENCE 的两个坑）：
+     用 `assigneeId`（= personId(email 前缀)）做**结构化外键**，**绝不用姓名**。
+     ALL_EVIDENCE 用 personName 字符串匹配，已付出「幽灵贡献者周立」
+     「『何嘉 ·』分隔符残缺」两个代价；新表从源头杜绝此类错配。
+   ⚠️ assigneeId 的取值**全部取自 orgPeople 现有 10 人**，不造新人。
+   ====================================================================== */
+
+/**
+ * WORK_WINDOW_AS_OF / WORK_WINDOW_END —— 「当前至未来 1 个月」的固定时间窗。
+ *
+ * 为什么不改 EVIDENCE_AS_OF 本身：它被 12 个月实证窗 withinWindow() 复用，
+ *   改它会牵动全部标签档位计算（风险外溢）。两常量**共享同一基准值**即可。
+ * 为什么右界写死字符串而非运行时加月份：
+ *   new Date('2026-09-17').setMonth(+1) 存在①月末溢出（1-31 加一月 → 3-3）
+ *   ②时区解析差异两个经典坑。写死 = 零解析歧义、断言可逐字复现——
+ *   与 EVIDENCE_AS_OF 同一哲学（「不可复现」已让本项目栽过三次）。
+ */
+export const WORK_WINDOW_AS_OF = EVIDENCE_AS_OF; // '2026-09-17'
+export const WORK_WINDOW_END = '2026-10-17'; // 写死右界，不用运行时加月份
+
+/**
+ * JIRA_ISSUES —— 每条 = 一个 Jira issue（issue 为中心，而非「人的属性」）。
+ * 字段：key（单号，兼作 React key）/ title / status / due（'YYYY-MM-DD'）/ project /
+ *       priority（选填）/ assigneeId（personId 结构化外键）。
+ * status 4 态：'todo' | 'inprogress' | 'review' | 'blocked'（blocked 不上屏，见 ui.jsx WorkStatusPill）。
+ *
+ * 覆盖：8 人有任务；zhiwei.shen / yiming.gu **特意 0 条**（测空态）。
+ * 含 1 条 status:'blocked' 样本；含逾期样本（due < WORK_WINDOW_AS_OF 且未完结）。
+ * 全部静态字面量，**无 new Date() / 无 Math.random()**。
+ */
+export const JIRA_ISSUES = [
+  // —— 周敏 min.zhou（设计系统负责人）——
+  { key: 'DS-3102', title: '设计令牌 v2 全站迁移与回归', status: 'inprogress', due: '2026-09-22', project: '设计系统', priority: 'P0', assigneeId: 'min.zhou' },
+  { key: 'DS-3110', title: '组件库无障碍标注补齐', status: 'review', due: '2026-09-29', project: '设计系统', priority: 'P1', assigneeId: 'min.zhou' },
+  { key: 'DS-3125', title: '深色模式令牌映射评审', status: 'todo', due: '2026-10-06', project: '设计系统', priority: 'P2', assigneeId: 'min.zhou' },
+  { key: 'DS-3080', title: '图标线性化收尾（面版图标下线）', status: 'inprogress', due: '2026-09-15', project: '设计系统', priority: 'P1', assigneeId: 'min.zhou' }, // 逾期样本
+  { key: 'DS-3121', title: '设计规范文档站改版', status: 'blocked', due: '2026-10-09', project: '设计系统', priority: 'P2', assigneeId: 'min.zhou' }, // blocked 样本
+  // —— 陈思远 siyuan.chen（会员增长组 · 产品经理）——
+  { key: 'MEM-2184', title: '会员积分规则迁移到自然年', status: 'review', due: '2026-10-08', project: '会员中心', priority: 'P0', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2190', title: '小程序会员等级权益改版', status: 'inprogress', due: '2026-09-25', project: '会员小程序', priority: 'P1', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2201', title: 'CRM 人群包同步链路梳理', status: 'todo', due: '2026-10-02', project: '会员中心', priority: 'P2', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2205', title: '积分商城兑换上限策略', status: 'todo', due: '2026-10-14', project: '会员中心', priority: 'P2', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2209', title: '生日礼遇触达文案优化', status: 'inprogress', due: '2026-10-01', project: '会员小程序', priority: 'P1', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2213', title: '会员数据看板口径对齐', status: 'todo', due: '2026-10-16', project: '经营看板', priority: 'P2', assigneeId: 'siyuan.chen' },
+  { key: 'MEM-2160', title: '积分过期提醒补偿方案', status: 'inprogress', due: '2026-09-10', project: '会员中心', priority: 'P1', assigneeId: 'siyuan.chen' }, // 逾期样本
+  // —— 林望 wang.lin（门店数字化组 · 技术负责人）——
+  { key: 'POS-1420', title: 'POS 结算性能优化第二阶段', status: 'inprogress', due: '2026-09-30', project: '门店 POS', priority: 'P0', assigneeId: 'wang.lin' },
+  { key: 'POS-1435', title: '自助结账反扫兼容性改造', status: 'review', due: '2026-10-07', project: '自助结账', priority: 'P1', assigneeId: 'wang.lin' },
+  { key: 'POS-1441', title: '多门店并发压测脚本', status: 'todo', due: '2026-10-13', project: '门店 POS', priority: 'P2', assigneeId: 'wang.lin' },
+  { key: 'POS-1408', title: '离线收银断网续传', status: 'inprogress', due: '2026-09-19', project: '门店 POS', priority: 'P1', assigneeId: 'wang.lin' },
+  // —— 刘倩 qian.liu（电商平台组 · 产品经理）——
+  { key: 'EC-2260', title: '商城购物车合并结算', status: 'inprogress', due: '2026-09-26', project: '线上商城', priority: 'P0', assigneeId: 'qian.liu' },
+  { key: 'EC-2271', title: '大促优惠叠加规则配置化', status: 'review', due: '2026-10-05', project: '促销中心', priority: 'P1', assigneeId: 'qian.liu' },
+  { key: 'EC-2280', title: '订单拆单与合单策略', status: 'todo', due: '2026-10-12', project: '线上商城', priority: 'P2', assigneeId: 'qian.liu' },
+  // —— 沈知微 zhiwei.shen（数据平台组）：**特意 0 条任务**（空态样本）——
+  // —— 何嘉 jia.he（SRE 组）——
+  { key: 'SRE-880', title: '监控告警降噪与分级', status: 'inprogress', due: '2026-09-24', project: '可观测平台', priority: 'P0', assigneeId: 'jia.he' },
+  { key: 'SRE-892', title: 'SSO 会话续期稳定性治理', status: 'review', due: '2026-10-03', project: 'SSO', priority: 'P1', assigneeId: 'jia.he' },
+  { key: 'SRE-901', title: '灰度发布流水线收敛', status: 'todo', due: '2026-10-15', project: 'CI/CD', priority: 'P2', assigneeId: 'jia.he' },
+  { key: 'SRE-860', title: '核心链路 SLO 复盘', status: 'inprogress', due: '2026-09-08', project: '可观测平台', priority: 'P1', assigneeId: 'jia.he' }, // 逾期样本
+  // —— 郑远 yuan.zheng（供应链数字化组）——
+  { key: 'SUP-660', title: '库存周转预测模型上线', status: 'inprogress', due: '2026-09-28', project: '库存与供应链', priority: 'P0', assigneeId: 'yuan.zheng' },
+  { key: 'SUP-671', title: '自动补货阈值调优', status: 'review', due: '2026-10-10', project: '库存与供应链', priority: 'P1', assigneeId: 'yuan.zheng' },
+  // —— 吴桐 tong.wu（门店数字化组 · 工程师）——
+  { key: 'ESL-330', title: '电子价签批量刷新性能', status: 'inprogress', due: '2026-09-27', project: '电子价签', priority: 'P1', assigneeId: 'tong.wu' },
+  { key: 'ESL-341', title: '门店设备离线告警补全', status: 'todo', due: '2026-10-11', project: '门店设备', priority: 'P2', assigneeId: 'tong.wu' },
+  { key: 'ESL-352', title: '价签模板与端侧缓存', status: 'todo', due: '2026-10-16', project: '电子价签', priority: 'P2', assigneeId: 'tong.wu' },
+  // —— 顾一鸣 yiming.gu（安全合规）：**特意 0 条任务**（空态样本）——
+  // —— 孙玥 yue.sun（内容运营）——
+  { key: 'OPS-455', title: '门户内容运营台改版', status: 'inprogress', due: '2026-09-23', project: '门户内容', priority: 'P1', assigneeId: 'yue.sun' },
+  { key: 'OPS-462', title: '部门公告模板规范化', status: 'review', due: '2026-10-04', project: '公告中心', priority: 'P2', assigneeId: 'yue.sun' },
+];
+
+/**
+ * getPersonWork(personIdOrEmail) —— 「近期工作内容」（前瞻态）。
+ * ------------------------------------------------------------------
+ * 筛选：① status 未完结（4 态均视为在进行）；② due ∈ [AS_OF, WINDOW_END]。
+ *   ★ 逾期未完结的（due < AS_OF）**也返回**，但排在窗口内任务之后
+ *     （漏掉逾期在办任务 = 对协作方撒谎；但不让它浮顶 = 不「示众」）。
+ * 排序（三级键，保证全序、无随机）：
+ *   窗口内 & 逾期两组各自：due 升序 → priority 降序(P0→P2) → key 字典序升序；
+ *   逾期组整体排在窗口内组之后。
+ * 返回：{ items:[...最多 5], total:n }。每项派生 `overdue` 布尔（口径收口在数据层，
+ *   渲染层不自行比较日期字符串）。like 一样「一个函数拿全个人页数据」。
+ */
+export function getPersonWork(personIdOrEmail) {
+  const key = String(personIdOrEmail || '').toLowerCase();
+  const P_ORDER = { P0: 0, P1: 1, P2: 2 };
+  const rank = (issue) => ({
+    ...issue,
+    overdue: issue.due < WORK_WINDOW_AS_OF,
+  });
+  // 未完结 = 全部 4 态（本项目无 'done' 态，故此处即「全部」；显式写守卫以备扩展）。
+  const open = JIRA_ISSUES.filter((i) => i.assigneeId === key && i.status !== 'done');
+  const inWindow = open.filter((i) => i.due >= WORK_WINDOW_AS_OF && i.due <= WORK_WINDOW_END).map(rank);
+  const overdue = open.filter((i) => i.due < WORK_WINDOW_AS_OF).map(rank);
+
+  const sortGroup = (arr) =>
+    arr.slice().sort((a, b) => {
+      if (a.due !== b.due) return a.due < b.due ? -1 : 1;
+      const pa = P_ORDER[a.priority] == null ? 9 : P_ORDER[a.priority];
+      const pb = P_ORDER[b.priority] == null ? 9 : P_ORDER[b.priority];
+      if (pa !== pb) return pa - pb;
+      return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+    });
+
+  const ordered = [...sortGroup(inWindow), ...sortGroup(overdue)];
+  return { items: ordered.slice(0, 5), total: ordered.length };
+}
+
 /** 按加权分 → 档位：0→none / 1–2→emerging / 3–5→established / ≥6→authoritative */
 export function tierOfScore(score) {
   if (score <= 0) return 'none';
@@ -1278,9 +1397,34 @@ export function tierOfScore(score) {
 }
 
 /**
+ * baseLikesOf(personId, tagId) —— 标签点赞的确定性基线计数。
+ * ------------------------------------------------------------------
+ * 纪律：**绝不用 Math.random()**。本项目所有屏幕级断言依赖可复现数字，
+ *       随机计数会让断言在任何运行日失效（且本项目已三次栽在「不可复现」上）。
+ *
+ * 算法：FNV-1a 32 位散列 → 取模 2 → 0 | 1
+ *   · 取模 2 的意图：点赞是「稀缺的认可」，不是人气榜。79 个标签实例下
+ *     %2 给出 37 个 0 赞 / 42 个 1 赞（v0.4.2 独立复算），0 赞是合法常态
+ *     （渲染为「0」），不是空态。
+ *   · 若用 %12 之类会产生大量个位数差异，读起来像「人气温差」——
+ *     而本项目铁律是「不造跨人横向比较」，故必须限制在极小值域。
+ *
+ * 确定性验证：同输入两次调用结果一致，且函数体内无 Math.random。
+ */
+export function baseLikesOf(personId, tagId) {
+  const s = String(personId) + '::' + String(tagId);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h % 2;
+}
+
+/**
  * getPersonProfile —— 个人页 / 反查页共用的查询函数。
- * 返回 { person, tags:[{tag, selfRating, evidenceTier, recentScore, recentCount,
- *         historicalCount, contributions[]}], stats, contributions[] }
+ * 返回 { person, tags:[{tag, evidenceTier, recentScore, recentCount,
+ *         historicalCount, likes, contributions[]}], contributions[] }
  *   · contributions 每条带 tagIds（供「→ 标签名」联动渲染与闭环验收）
  *   · 幽灵贡献者「周立」未匹配到人 → 不计入任何个人页
  */
@@ -1290,7 +1434,6 @@ export function getPersonProfile(personIdOrEmail) {
   if (!person) return { person: null, tags: [], contributions: [] };
 
   const mapping = personTags[key] || {};
-  const primaries = primaryTags[key] || [];
 
   // 该人的全部证据条目（近 12 月 + 历史）。
   // 显式排除 parseOwnerName 返回 null（格式残缺/空 owner）的条目——与幽灵贡献者「周立」
@@ -1304,11 +1447,10 @@ export function getPersonProfile(personIdOrEmail) {
   const buildTag = (id) => {
     const tag = TAG_BY_ID[id];
     if (!tag) return null;
-    const selfRating = mapping[id] || null;
     // ★ 状态守卫（P1-4）：deprecated / merged 标签**不参与实证计算**——它们已不是有效标签，
     //   证据度恒为 0（tier='none'）。否则一条恰好带了旧标签别名的贡献会凭空抬高（或伪造）
     //   该标签档位，进而污染个人页。此处把不变量写在**代码**里，而不是依赖「当前没有贡献
-    //   映射到旧标签」的数据巧合。selfRating 仍保留（历史自评可展示），但实证恒 none。
+    //   映射到旧标签」的数据巧合。
     const isActive = tag.status !== 'deprecated' && tag.status !== 'merged';
     // 该标签喂养的证据 = 该人带此标签映射的条目
     const feeding = contributions.filter((e) => (e.tagIds || []).includes(id));
@@ -1335,23 +1477,26 @@ export function getPersonProfile(personIdOrEmail) {
     }
     return {
       tag: displayTag,
-      selfRating,
       evidenceTier,
       recentScore,
       recentCount: recent.length,
       historicalCount: historical.length,
       totalCount: uniq(feeding).length,
-      primary: primaries.includes(id),
+      // v0.4.2：点赞基线（确定性散列，值域 {0,1}）——渲染为「0」亦为合法常态。
+      likes: baseLikesOf(key, id),
       contributions: feeding,
     };
   };
 
-  // v0.4.1 单树：按 SKILL_GROUPS 的组序排列；组内 primary 优先，再按词表索引。
+  // v0.4.2 单树：按 SKILL_GROUPS 的组序排列；组内「系统档位降序 → 词表索引升序」。
+  //   原「primary 优先」二级键随主标签概念退场——留一个永远 false 的比较会静默错乱。
   const orderOf = (id) => TAG_DICT.findIndex((t) => t.id === id);
   const groupRank = (g) => {
     const i = SKILL_GROUPS.indexOf(g);
     return i === -1 ? SKILL_GROUPS.length : i;
   };
+  const TIER_ORDER = { none: 0, emerging: 1, established: 2, authoritative: 3 };
+  const tierRank = (t) => TIER_ORDER[t.evidenceTier] || 0;
   const tags = Object.keys(mapping)
     .map(buildTag)
     .filter(Boolean)
@@ -1359,7 +1504,8 @@ export function getPersonProfile(personIdOrEmail) {
       const ga = groupRank(a.tag.group);
       const gb = groupRank(b.tag.group);
       if (ga !== gb) return ga - gb;
-      if (a.primary !== b.primary) return a.primary ? -1 : 1;
+      const td = tierRank(b) - tierRank(a);
+      if (td !== 0) return td;
       return orderOf(a.tag.id) - orderOf(b.tag.id);
     });
 
@@ -1367,6 +1513,8 @@ export function getPersonProfile(personIdOrEmail) {
     person,
     tags,
     contributions,
+    // v0.4.3：近期工作（前瞻态）——「一个函数拿全个人页数据」。
+    work: getPersonWork(key),
   };
 }
 

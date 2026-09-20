@@ -419,10 +419,17 @@ body {
 .dp-g-article {
   grid-template-columns: minmax(0, 1fr) 232px;
 }
-/* v0.4.1 个人主页专用非对称栅格（不复用 .dp-g-article，避免波及 ArticleDetail）：
-   主栏（技能标签树）显著宽于辅栏（近期知识贡献），呼应「标签为主、贡献为辅」。 */
+/* —— v0.4.3：.dp-g-profile 已无使用点（楼层 3 改用 .dp-g-duo，1.85fr/1fr 的
+   「标签为主、贡献为辅」语义已随标签升为独立楼层而退场）。
+   保留定义以稳住 mutation.cjs TARGETS 的 global.css sha256 与历史；
+   待下轮连同变异 M9 一并清理。 */
 .dp-g-profile {
   grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+}
+/* v0.4.3 楼层 3：近期工作 ｜ 近期知识贡献（两个平级模块）。
+   等宽 1fr/1fr：两块都是「这个人在做什么」的一个侧面（前瞻=工作 / 回顾=贡献），无主次。 */
+.dp-g-duo {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 .dp-g-tools {
   grid-template-columns: 200px minmax(0, 1fr);
@@ -444,37 +451,36 @@ body {
   .dp-g-spec,
   .dp-g-article,
   .dp-g-profile,
+  .dp-g-duo,
   .dp-g-tools {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-/* —— 标签矩阵内网格：卡更小，gap 需更紧 ——
-   不改 .dp-grid 默认 gap 16px（否则全站连带）。标签卡比常规卡片小，
-   16px 会显得松散、读不出「同一标签的两行」与「相邻两个标签」的分组差异。 */
-.dp-grid--tight {
-  gap: 12px;
+/* —— v0.4.3 楼层 2：技能标签横向流式楼层（去分组结构后的唯一容器）——
+   替代 v0.4.2 的「按组分段 + .dp-grid--tight 组内网格」。
+   flex-wrap 让短标签（RAG / 埋点）不被拉宽，是「提高屏效」的实现手段。
+   ≤900px 无需专门规则：flex-wrap 天然在窄屏换行成更少列，不新增断点。
+   v0.4.3：原 .dp-grid--tight（组内网格）已无使用点，删除。 */
+.dp-tag-floor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
 }
 
 /* —— 标签体系 · 两处必须写进 global.css 的重排（内联 style 无法被媒体查询覆盖）——
-   ① 个人页页头：≤900px 改纵向（头像在上、姓名与主标签换行到下方）
+   ① 个人页页头：≤900px 改纵向（头像在上、姓名换行到下方）
    ② 标签反查页结果行：≤900px 内容纵向堆叠（姓名行 / 标签行）
    注意：这两处**不是**顶栏，不存在「高度单调」约束（README 断言 2/3 是顶栏专用），
-   因此可以放心用 flex-wrap: wrap，不会踩顶栏那两个坑。 */
+   因此可以放心用 flex-wrap: wrap，不会踩顶栏那两个坑。
+   v0.4.2：主标签退场 → .dp-person-head-row / .dp-person-head-tags 已成死 CSS，删除。 */
 @media (max-width: 900px) {
   .dp-person-head {
     flex-wrap: wrap;
   }
-  .dp-person-head-row {
-    flex-direction: column;
-  }
   .dp-person-head-main {
     flex-direction: column;
-  }
-  .dp-person-head-tags {
-    width: 100%;
-    align-items: flex-start !important;
-    margin-top: 4px;
   }
   .dp-tagbrowse-row {
     flex-wrap: wrap;
@@ -606,7 +612,8 @@ section[id^='grp-'] {
 /* .dp-nav-item 已有；这里补齐「整卡/整行可点」的卡片与列表行，
    它们靠 role=button + tabindex 获得焦点，但没有可见焦点环。 */
 .dp-card[role='button']:focus-visible,
-.dp-row:focus-visible {
+.dp-row:focus-visible,
+.dp-like:focus-visible {
   outline: 2px solid #3643ba;
   outline-offset: 2px;
 }

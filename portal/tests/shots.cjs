@@ -99,10 +99,12 @@ const MEASURE = `JSON.stringify((()=>{
     promise: G('.dp-demand-promise'),
     assistant: G('.dp-demand-assistant'),
   } : null;
-  // v0.4.1 个人主页两栏栅格几何（.dp-g-profile）：量两个直接子列的 left/top/width。
-  //   规范（global.css）：grid-template-columns: minmax(0,1.85fr) minmax(0,1fr)；
+  // v0.4.3 个人主页楼层 3 两栏栅格几何（.dp-g-duo）：量两个直接子列的 left/top/width。
+  //   v0.4.3 改动：个人主页楼层 3 由「非对称 .dp-g-profile（1.85fr/1fr）」改为
+  //   「等宽双栏 .dp-g-duo（1fr/1fr）」。采集选择器随之改为 .dp-g-duo（否则量到 null）。
+  //   规范（global.css）：grid-template-columns: minmax(0,1fr) minmax(0,1fr)；
   //   ≤900px 塌缩为单列（两列 left 相同、上下列排）。这是 jsdom 无布局引擎、只能靠真实 Chrome 实测的项。
-  const profGrid = document.querySelector('.dp-g-profile');
+  const profGrid = document.querySelector('.dp-g-duo');
   const profGeom = profGrid ? {
     cols: Array.from(profGrid.children).map((e) => { const r = e.getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top), w: Math.round(r.width) }; }),
     gridW: Math.round(profGrid.getBoundingClientRect().width),
@@ -138,6 +140,19 @@ const OPEN_SEARCH = `(()=>{const b=document.querySelector('[aria-label="打开�
 const TYPE_SEARCH = `(()=>{const i=document.querySelector('.ant-modal input');if(!i)return false;const s=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;s.call(i,'积分');i.dispatchEvent(new Event('input',{bubbles:true}));return true})()`;
 // 切到「功能 / 系统」（BRD 完整档）：只有完整档才渲染 .dp-demand-assistant，几何门依赖它。
 const CLICK_BRD = `(()=>{const it=Array.from(document.querySelectorAll('.ant-segmented-item')).find(x=>/功能 \\/ 系统/.test(x.textContent));if(it)it.click();return !!it})()`;
+
+/* ── 存在性探针（供 pre 之后的「同步等待」用）─────────────────────────────
+   为什么需要：375 档 mobile 下 CLICK_BRD 偶发未生效（分段控件未渲染 / React 尚未挂载
+   完成即被点），于是 BRD 分支没渲染、.dp-demand-assistant 缺失、specGeom 量到空 →
+   shots 断言 1c flaky（首轮红、复跑绿）。而 M2 的「文本门由 shots 1c 几何独立兜底」
+   辩护正依赖 1c 的确定性——若 1c 时灵时不灵，辩护就是空的。
+   故：pre 点击后**轮询等待目标元素出现**，带上限与超时诊断；超时**必须 fail**，
+   不许静默 pass（否则又退化成「靠运气的门」）。 */
+const EXISTS = (sel) => `!!document.querySelector(${JSON.stringify(sel)})`;
+// 分段控件值（读当前选中档位文案，用于超时诊断：区分「没点到」与「点了没渲染」）
+const SEG_TEXT = `(()=>{const it=document.querySelector('.ant-segmented-item-selected');return it?it.textContent:null})()`;
+// 页面是否已挂载 demand/new 的表单栅格（区分「路由没到」与「档位没切」）
+const SPEC_PRESENT = `!!document.querySelector('.dp-g-spec')`;
 
 const SHOTS = [
   { name: '01-home-1440', hash: '#/home', w: 1440, h: 1500 },
@@ -181,9 +196,9 @@ const SHOTS = [
   //   #/demand/new：900 验单列顺序（promise→assistant→form）；375 验更窄；1280 验双栏
   //   注意：该页按规范刻意卸载 doodle（shots.cjs:415 已允许「量不到不算失败」）。
   //   先点「功能 / 系统」档，让完整档的 BRD 助手卡（.dp-demand-assistant）渲染出来再量。
-  { name: '24-demandnew-900', hash: '#/demand/new', w: 900, h: 2400, pre: CLICK_BRD, settle: 800 },
-  { name: '25-demandnew-1280', hash: '#/demand/new', w: 1280, h: 2000, pre: CLICK_BRD, settle: 800 },
-  { name: '26-demandnew-375', hash: '#/demand/new', w: 375, h: 2600, mobile: true, pre: CLICK_BRD, settle: 800 },
+  { name: '24-demandnew-900', hash: '#/demand/new', w: 900, h: 2400, pre: CLICK_BRD, waitSel: '.dp-demand-assistant', settle: 800 },
+  { name: '25-demandnew-1280', hash: '#/demand/new', w: 1280, h: 2000, pre: CLICK_BRD, waitSel: '.dp-demand-assistant', settle: 800 },
+  { name: '26-demandnew-375', hash: '#/demand/new', w: 375, h: 2600, mobile: true, pre: CLICK_BRD, waitSel: '.dp-demand-assistant', settle: 800 },
   //   组织速查：1440 + 768
   { name: '27-org-1440', hash: '#/org', w: 1440, h: 1500 },
   { name: '28-org-768', hash: '#/org', w: 768, h: 1700 },
@@ -319,6 +334,8 @@ async function main() {
   const badNum = (x) => x == null || (typeof x === 'number' && Number.isNaN(x));
 
   const report = [];
+  // pre 阶段（点档 / 开弹层）的存在性等待失败收集 —— 超时**必须 fail**，不许静默跳过。
+  const preFailures = [];
   for (const s of SHOTS) {
     await send('Emulation.setDeviceMetricsOverride', {
       width: s.w,
@@ -334,8 +351,44 @@ async function main() {
     await sleep(2400); // 首屏 Skeleton(460ms) + 渲染
     await send('Runtime.evaluate', { expression: KILL_TOUR });
     if (s.pre) {
-      await send('Runtime.evaluate', { expression: s.pre });
+      const pr = await send('Runtime.evaluate', { expression: s.pre, returnByValue: true });
+      // pre 脚本统一返回布尔（是否命中目标控件）；false = 连控件都没找到，是确定性失败信号。
+      const preHit = pr && pr.result ? pr.result.value : undefined;
       await sleep(s.settle || 600);
+      // 「存在性重试」：仅当该截图声明了 waitSel 时启用。轮询等待目标元素出现，
+      //   带**上限**（attempts × step ≈ 上限毫秒）；超时**不静默**——把诊断写进 preFailures，
+      //   由断言阶段汇总成 FAIL（含：目标选择器 / 已等待时长 / pre 是否命中 / 当前分段档位 / 路由是否渲染）。
+      if (s.waitSel) {
+        const MAX_ATTEMPTS = 10; // 10 × 300ms ≈ 3s 上限
+        const STEP_MS = 300;
+        let found = false;
+        let waited = 0;
+        for (let k = 0; k < MAX_ATTEMPTS; k++) {
+          const ex = await send('Runtime.evaluate', { expression: EXISTS(s.waitSel), returnByValue: true });
+          if (ex && ex.result && ex.result.value === true) {
+            found = true;
+            break;
+          }
+          // 重试期间再点一次 BRD：偶发「首次点击落在未就绪的分段控件上」→ 补一次点击即可恢复。
+          if (s.pre === CLICK_BRD) await send('Runtime.evaluate', { expression: CLICK_BRD });
+          await sleep(STEP_MS);
+          waited += STEP_MS;
+        }
+        if (!found) {
+          // 采集诊断快照（尽量多信息，便于区分根因）
+          const seg = await send('Runtime.evaluate', { expression: SEG_TEXT, returnByValue: true });
+          const specOk = await send('Runtime.evaluate', { expression: SPEC_PRESENT, returnByValue: true });
+          preFailures.push(
+            `[pre 存在性超时] ${s.name}（${s.w}x${s.h}）：等待 ${s.waitSel} 出现失败——` +
+              `已等待 ${waited}ms / 上限 ${MAX_ATTEMPTS * STEP_MS}ms；` +
+              `pre 命中控件=${preHit}; 当前分段档=${seg && seg.result ? JSON.stringify(seg.result.value) : 'n/a'}; ` +
+              `.dp-g-spec 是否渲染=${specOk && specOk.result ? specOk.result.value : 'n/a'}`
+          );
+        }
+      } else if (preHit === false) {
+        // 未声明 waitSel 但 pre 明确返回 false（控件未命中）→ 同样确定性失败，不静默。
+        preFailures.push(`[pre 未命中] ${s.name}（${s.w}x${s.h}）：pre 脚本返回 false（目标控件未找到）`);
+      }
     }
     if (s.typed) {
       await send('Runtime.evaluate', { expression: s.typed });
@@ -419,6 +472,7 @@ async function main() {
         routeScan: scan,
         thresholds: { T1: T_B1, T2: T_B2 },
         sweep: { desktop: sweepDesktop, mobile: sweepMobile },
+        preFailures,
       },
       null,
       2
@@ -431,6 +485,11 @@ async function main() {
   const failures = [];
   const pick = (rows, w) => rows.find((r) => r.w === w);
   const GAP = 16; // .dp-topbar-inner 在 ≥768 的 gap
+
+  // 断言0：pre 阶段存在性等待失败（超时 / pre 未命中）——**确定性失败，不静默跳过**。
+  //   这条是修 P1-1 flaky 的核心：把「偶发未渲染」变成「重试后仍失败则明确报错」，
+  //   而不是让 specGeom 悄悄变空、再靠「复跑碰运气」通过。
+  for (const pf of preFailures) failures.push(pf);
 
   // 空数据哨兵：任何一档测量值 null/undefined/NaN → 失败（不是跳过）
   for (const mode of ['desktop', 'mobile']) {
@@ -519,28 +578,29 @@ async function main() {
     failures.push('断言1c 哨兵：#/demand/new 的任何截图都未量到 .dp-g-spec —— 页面可能没渲染（检查路由与 CLICK_BRD）');
   }
 
-  // 断言1d：★ 真实几何门 —— v0.4.1 个人主页两栏栅格（.dp-g-profile）
-  //   规范（global.css:424）：grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr)；
-  //     ≤900px 塌缩为单列。jsdom 无布局引擎 → 只有本通道能实测「主栏真的宽于辅栏 / 真的塌缩成单列」。
-  //   用 getBoundingClientRect().width 求两列实际宽比 ≈ 1.85（容差计入 24px gap 的分配与亚像素取整）。
-  //   判定：宽屏（1440）两列 left 不同 + width 比落在 [1.70, 2.05]；窄屏（768）两列 left 相同（单列堆叠）。
+  // 断言1d：★ 真实几何门 —— v0.4.3 个人主页楼层 3 两栏栅格（.dp-g-duo）
+  //   规范（global.css）：grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)（等宽双栏）；
+  //     ≤900px 塌缩为单列。jsdom 无布局引擎 → 只有本通道能实测「两栏真的等宽 / 真的塌缩成单列」。
+  //   v0.4.3 改动：选择器由 .dp-g-profile 改为 .dp-g-duo；宽屏期望比由 ≈1.85 改为 **≈1.00**
+  //     （容差 [0.92, 1.08]，计入 24px gap 分配与亚像素取整）。
+  //   判定：宽屏（1440）两列 left 不同 + width 比落在 [0.92, 1.08]；窄屏（768）两列 left 相同（单列堆叠）。
   {
     const profWide = report.find((r) => r.name === '18-person-1440');
     const profNarrow = report.find((r) => r.name === '19-person-768');
     const pg = (r) => (r && r.measure && typeof r.measure === 'object' ? r.measure.profGeom : null);
 
-    // (a) 宽屏：两列 left 不同、主栏宽 > 辅栏宽、宽比 ≈ 1.85
+    // (a) 宽屏：两列 left 不同、两列宽度近似相等、宽比 ≈ 1.00
     {
       const g = pg(profWide);
       if (!g || !g.cols || g.cols.length < 2) {
-        failures.push('断言1d 个人主页栅格 18-person-1440：未量到 .dp-g-profile 的两列几何');
+        failures.push('断言1d 个人主页栅格 18-person-1440：未量到 .dp-g-duo 的两列几何');
       } else {
         const [a, b] = g.cols;
         if (a.left === b.left) failures.push(`断言1d 个人主页栅格 18-person-1440：两列 left 相同（${a.left}）——宽屏应为两栏而非单列`);
-        if (!(a.w > b.w)) failures.push(`断言1d 个人主页栅格 18-person-1440：主栏宽 ${a.w} 应 > 辅栏宽 ${b.w}`);
-        const ratio = b.w ? a.w / b.w : null;
-        if (ratio == null || ratio < 1.7 || ratio > 2.05) {
-          failures.push(`断言1d 个人主页栅格 18-person-1440：主/辅列宽比 ${ratio == null ? 'n/a' : ratio.toFixed(3)} 应 ≈1.85（容差 1.70–2.05）；实测 主=${a.w}px 辅=${b.w}px，grid-template-columns=${g.cols0}`);
+        const lo = Math.min(a.w, b.w);
+        const ratio = lo ? Math.max(a.w, b.w) / lo : null;
+        if (ratio == null || ratio < 0.92 || ratio > 1.08) {
+          failures.push(`断言1d 个人主页栅格 18-person-1440：两列宽比 ${ratio == null ? 'n/a' : ratio.toFixed(3)} 应 ≈1.00（容差 0.92–1.08）；实测 列1=${a.w}px 列2=${b.w}px，grid-template-columns=${g.cols0}`);
         }
       }
     }
@@ -548,7 +608,7 @@ async function main() {
     {
       const g = pg(profNarrow);
       if (!g || !g.cols || g.cols.length < 2) {
-        failures.push('断言1d 个人主页栅格 19-person-768：未量到 .dp-g-profile 的两列几何');
+        failures.push('断言1d 个人主页栅格 19-person-768：未量到 .dp-g-duo 的两列几何');
       } else {
         const [a, b] = g.cols;
         if (a.left !== b.left) failures.push(`断言1d 个人主页栅格 19-person-768：≤900px 应塌缩为单列（两列 left 相同），实测 ${a.left} vs ${b.left}`);
@@ -646,8 +706,8 @@ async function main() {
     console.log(`    ${nm} (${r.viewport})  promise[${f(g.promise)}]  assistant[${f(g.assistant)}]  form[${f(g.form)}]  side[${f(g.side)}]`);
   }
 
-  /* v0.4.1 个人主页两栏栅格几何实测值（人读）——证明「1.85:1 + ≤900 单列」是量出来的 */
-  console.log('\n  v0.4.1 个人主页 .dp-g-profile 两栏几何实测（getBoundingClientRect）：');
+  /* v0.4.3 个人主页楼层 3 两栏栅格几何实测值（人读）——证明「1:1 等宽 + ≤900 单列」是量出来的 */
+  console.log('\n  v0.4.3 个人主页 .dp-g-duo 两栏几何实测（getBoundingClientRect）：');
   for (const nm of ['18-person-1440', '19-person-768']) {
     const r = report.find((x) => x.name === nm);
     const g = r && r.measure ? r.measure.profGeom : null;
@@ -657,8 +717,9 @@ async function main() {
     }
     const c0 = g.cols[0] || {};
     const c1 = g.cols[1] || {};
-    const ratio = c1.w ? (c0.w / c1.w).toFixed(3) : 'n/a';
-    console.log(`    ${nm} (${r.viewport})  主列[w=${c0.w} left=${c0.left}]  辅列[w=${c1.w} left=${c1.left}]  宽比=${ratio}  grid-template-columns=${g.cols0}`);
+    const lo = Math.min(c0.w || 0, c1.w || 0);
+    const ratio = lo ? (Math.max(c0.w, c1.w) / lo).toFixed(3) : 'n/a';
+    console.log(`    ${nm} (${r.viewport})  列1[w=${c0.w} left=${c0.left}]  列2[w=${c1.w} left=${c1.left}]  宽比=${ratio}  grid-template-columns=${g.cols0}`);
   }
 
   if (failures.length) {
@@ -666,7 +727,7 @@ async function main() {
     failures.forEach((f) => console.error('  - ' + f));
     process.exitCode = 1;
   } else {
-    console.log(`\n[OK] 断言1–4 全部通过（含 #/demand/new 表单顺序真实几何门 900/1280/375；v0.4.1 个人主页 .dp-g-profile 两栏宽比≈1.85 + ≤900 单列真实几何门 1440/768；无空数据 / 无溢出 / 顶栏高恒等且单调 / 内容不超宽 / navText 上区间且 ≥${T_B2} 可见）`);
+    console.log(`\n[OK] 断言1–4 全部通过（含 #/demand/new 表单顺序真实几何门 900/1280/375；v0.4.3 个人主页 .dp-g-duo 两栏宽比≈1.00 + ≤900 单列真实几何门 1440/768；无空数据 / 无溢出 / 顶栏高恒等且单调 / 内容不超宽 / navText 上区间且 ≥${T_B2} 可见）`);
   }
 }
 

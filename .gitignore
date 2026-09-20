@@ -74,10 +74,11 @@ portal/tests/.mutation.lock
 
 # ── portal 下的验证脚本与运行期输出 ────────────────────
 # 约定：portal/ 根目录（不含 src/ tests/）中 **下划线或纯小写单字母开头** 的
-# .cjs / .js / .txt / .json 一律视为一次性验证产物，不入库。
+# .cjs / .mjs / .js / .txt / .json 一律视为一次性验证产物，不入库。
 # 说明：这些文件是 CDP 复验、变异测试、交付组装时的中间脚本与日志，
 #      有价值的结论已沉淀进 tests/ 与 outputs/，原件留着只会淹没真实代码。
 /portal/_*.cjs
+/portal/_*.mjs
 /portal/_*.js
 /portal/_*.txt
 /portal/_*.json

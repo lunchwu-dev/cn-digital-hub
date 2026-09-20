@@ -16,7 +16,7 @@ export default function Org() {
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500, color: c.ink, letterSpacing: '-0.01em' }}>组织速查</h1>
-          <span style={{ fontSize: 14, color: c.text2 }}>按姓名、团队或专长找到对接人</span>
+          <span style={{ fontSize: 14, color: c.text2 }}>按姓名、团队或技能标签找到对接人</span>
         </div>
         <ContentMeta owner="设计系统组 · 周敏 / 内容运营 · 孙玥" updated={META.updated} style={{ marginTop: 10 }} />
       </div>

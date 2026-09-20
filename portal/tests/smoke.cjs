@@ -1530,32 +1530,35 @@ async function main() {
   await navigate(win, '#/workspace/people/min.zhou');
   await settle(520);
   {
-    const peopleNeed = ['周敏', '设计系统组 · 设计系统负责人', '技能标签', '协作与流程', '近期知识贡献', '主标签'];
+    const peopleNeed = ['周敏', '设计系统组 · 设计系统负责人', '技能标签', '协作与流程', '近期知识贡献'];
     const pmiss = peopleNeed.filter((t) => !pageHas(doc, t));
-    if (pmiss.length === 0) ok('个人主页渲染：页头 + 技能标签树（单树分组）+ 右栏贡献', peopleNeed.length + ' 项命中');
+    if (pmiss.length === 0) ok('个人主页渲染：页头 + 技能标签树（单树分组）+ 右栏贡献（三模块）', peopleNeed.length + ' 项命中');
     else fail('个人主页渲染', '缺失：' + pmiss.join(' / '));
 
-    /* v0.4.1 单树 · TagMatrix 只渲染「该人有标签」的分组（空组不渲染）
+    /* v0.4.3 横排标签楼层 · 去分组（替代 v0.4.1「2 组 · 共 8 个标签」分组口径门）
        ------------------------------------------------------------------
-       周敏 min.zhou 数据事实（本轮实测 outputs/_gprobe.json）：8 个标签、分属
-       2 组（产品与设计 4 + 协作与流程 4）。故标签树 Panel 头应显示「2 组 · 共 8 个标签」。
-       若 TagMatrix 去掉 `.filter((b) => b.list.length > 0)`（空组照渲），
-       buckets 会变成全部 7 组 → 文案变「7 组 · 共 8 个标签」，且空组名（AI 与算法 等）会冒上屏。
-       这是 v0.4.1「单树 + 减法」的核心不变量，必须被钉住（对应变异 M8）。 */
+       v0.4.3 改动（ui.jsx TagMatrix）：删掉 groupBar / buckets / 组内 .dp-grid 嵌套，
+       改为单个 `.dp-tag-floor`（flex-wrap）平铺**该人全部**标签卡（保持标签原序，不重排）。
+       故 Panel 头 desc 由「N 组 · 共 M 个标签」改为「共 M 个标签 · 按技能领域排序」，
+       且**不再有任何分组标题条**（组名只作为卡内 11px 小字保留）。
+       数据事实（v0.4.3 返修后 esbuild 探针实测 getPersonProfile('min.zhou').tags = 8）：
+         · 周敏 min.zhou：8 个标签（此前误删 'd-design-system' 导致虚降为 7，已恢复）
+       若 TagMatrix 又退回分组结构（groupBar/buckets 复活），desc 会变回「N 组 · …」→ 变红。
+       这是 v0.4.3「去分组横排」的核心不变量。 */
     {
-      // 定位标签树 Panel 头：标题 div 的文本恰为「技能标签」，其父的下一个 div 即 desc
+      // 定位标签楼层 Panel 头：标题 div 的文本恰为「技能标签」，其父的下一个 div 即 desc
       const titleEl = Array.from(doc.querySelectorAll('.dp-card div')).find(
         (d) => norm(d.textContent) === '技能标签' && d.children.length === 0
       );
       const descEl = titleEl && titleEl.parentElement ? titleEl.parentElement.querySelector('div + div') : null;
       const desc = descEl ? norm(descEl.textContent) : '';
       // 注：norm() 抹掉全部空白，故期望值也用「无空格」形式比对
-      if (desc === norm('2 组 · 共 8 个标签')) {
-        ok('v0.4.1 TagMatrix 只渲染有标签的分组（周敏 2 组 / 8 标签，空组不渲染）', descEl ? descEl.textContent : '');
+      if (desc === norm('共 8 个标签 · 按技能领域排序')) {
+        ok('v0.4.3 TagMatrix 去分组：Panel 头 desc =「共 8 个标签 · 按技能领域排序」（无「N 组 ·」前缀）', descEl ? descEl.textContent : '');
       } else {
-        fail('v0.4.1 TagMatrix 分组渲染口径应为「2 组 · 共 8 个标签」', `实得 desc=${JSON.stringify(descEl ? descEl.textContent : '')}`);
+        fail('v0.4.3 TagMatrix desc 应为「共 8 个标签 · 按技能领域排序」', `实得 desc=${JSON.stringify(descEl ? descEl.textContent : '')}`);
       }
-      // 空组名不得出现在该人主页（空组在个人画像里是纯噪音）
+      // 该人主页不得出现空组名（空组在个人画像里是纯噪音）；卡内只显示该人标签所属组名
       const emptyGroupLeak = ['AI 与算法', '平台与安全'].filter((g) => pageHas(doc, g));
       if (emptyGroupLeak.length === 0) ok('   ↳ 周敏主页无空组名泄漏（AI 与算法 / 平台与安全 均未渲染）');
       else fail('   ↳ 周敏主页出现空组名（空组不应渲染）', emptyGroupLeak.join(' / '));
@@ -1571,19 +1574,44 @@ async function main() {
     if (doc.querySelectorAll('.dp-nav-item').length === 7) ok('   ↳ 一级导航仍 7 项');
     else fail('   ↳ 一级导航 7 项', `实际 ${doc.querySelectorAll('.dp-nav-item').length}`);
 
-    // 标签矩阵必须存在（含 .dp-grid--tight 网格），且标签卡可点（role=button + tabindex=0）
-    const tightGrid = doc.querySelector('.dp-grid--tight');
-    if (tightGrid) ok('标签矩阵使用 .dp-grid--tight 更紧网格（不改 .dp-grid 默认值）');
-    else fail('标签矩阵使用 .dp-grid--tight', '未找到 .dp-grid--tight');
+    // 标签矩阵必须存在（v0.4.3 起为 .dp-tag-floor 横向流式楼层），且标签卡可点（role=button + tabindex=0）
+    const tightGrid = doc.querySelector('.dp-tag-floor');
+    if (tightGrid) ok('标签矩阵使用 .dp-tag-floor 横向流式楼层（v0.4.3 去分组）');
+    else fail('标签矩阵使用 .dp-tag-floor', '未找到 .dp-tag-floor');
 
-    const tagCards = doc.querySelectorAll('.dp-grid--tight .dp-card[role="button"][tabindex="0"]');
+    const tagCards = doc.querySelectorAll('.dp-tag-floor .dp-card[role="button"][tabindex="0"]');
     if (tagCards.length > 0) ok('标签卡可点（role=button + tabindex=0，跳反查页）', `${tagCards.length} 张`);
     else fail('标签卡可点', `命中 ${tagCards.length} 张`);
 
-    // 成熟度双轴：自评圆点 + 实证分段条（形状不同 → 不可相加）
-    const dots = doc.querySelectorAll('.dp-card span[style*="border-radius: 999"]');
-    if (dots.length >= 4) ok('成熟度双轨（自评圆点 + 实证分段条）：自评圆点阵已渲染', `${dots.length} 个圆点元素`);
-    else fail('双轴成熟度：自评圆点阵已渲染', `仅 ${dots.length} 个圆点元素（应 ≥4）`);
+    /* —— v0.4.2 单一系统轨门（替代原「双轴成熟度」门）——
+       ① 档位条已渲染：每张标签卡内 4 段等分胶囊（border-radius:999 的 span），
+          故 .dp-tag-floor 内此类元素数应 ≥ 4×标签卡数；
+       ② 自评点阵特征 0 命中：旧点阵是「实心 #3643ba 圆 + 空心 1.5px #c3c9f0 圆」混排，
+          现在不得存在任何「实心 brand 底 + 无边框」的圆点阵。
+       最怕的错法：把档位条换成了点阵（自评轨复活），或点阵没删干净。 */
+    {
+      const segs = doc.querySelectorAll('.dp-tag-floor span[style*="border-radius: 999"]');
+      const cardsN = doc.querySelectorAll('.dp-tag-floor .dp-card[role="button"]').length;
+      if (cardsN > 0 && segs.length >= 4 * cardsN) {
+        ok('v0.4.2 系统档位条已渲染（每标签卡 4 段等分胶囊）', `${segs.length} 段 / ${cardsN} 卡`);
+      } else {
+        fail('v0.4.2 系统档位条已渲染', `段=${segs.length} 卡=${cardsN}（应 ≥ ${4 * cardsN}）`);
+      }
+      // 自评点阵特征：实心品牌蓝圆点（background 含 3643ba/54,67,186，且无 visible 边框）
+      const dotLike = Array.from(doc.querySelectorAll('.dp-tag-floor span')).filter((el) => {
+        const cs = win.getComputedStyle(el);
+        const isRound = parseFloat(cs.borderRadius) >= 50;
+        const solidBrand = /3643ba|54,\s*67,\s*186/i.test(cs.backgroundColor);
+        const bw = parseFloat(cs.borderTopWidth) || 0;
+        // 排掉档位段（那些是 flex:1 的宽条，不是圆点）：圆点 width ≈ height 且很小
+        const w = parseFloat(cs.width) || 0;
+        const h = parseFloat(cs.height) || 0;
+        const isDot = w > 0 && h > 0 && Math.abs(w - h) <= 0.5 && w <= 14;
+        return isRound && solidBrand && bw === 0 && isDot;
+      });
+      if (dotLike.length === 0) ok('   ↳ 自评圆点阵特征 0 命中（自评轨已彻底退场）');
+      else fail('   ↳ 自评圆点阵特征仍存在（自评轨未退场）', `${dotLike.length} 个实心品牌蓝圆点`);
+    }
 
   }
 
@@ -1603,7 +1631,7 @@ async function main() {
   await navigate(win, '#/workspace/people/wang.lin');
   await settle(520);
   {
-    const legacyChip = Array.from(doc.querySelectorAll('.dp-grid--tight .dp-chip')).find((el) => {
+    const legacyChip = Array.from(doc.querySelectorAll('.dp-tag-floor .dp-chip')).find((el) => {
       const cs = win.getComputedStyle(el);
       return (
         /dashed/.test(cs.borderTopStyle) &&
@@ -1613,7 +1641,7 @@ async function main() {
     });
     if (legacyChip) ok('个人标签矩阵：legacy(deprecated) 标签带状态样式渲染（非静默丢弃）');
     else {
-      const anyLegacy = Array.from(doc.querySelectorAll('.dp-grid--tight .dp-chip')).map((e) => norm(e.textContent)).join('|');
+      const anyLegacy = Array.from(doc.querySelectorAll('.dp-tag-floor .dp-chip')).map((e) => norm(e.textContent)).join('|');
       fail('个人标签矩阵 legacy 标签渲染', `未找到虚线+竖条+已停用的 chip；现有 chips=${anyLegacy.slice(0, 160)}`);
     }
   }
@@ -1622,10 +1650,21 @@ async function main() {
      盲区修正：原写法只看「页面里存在正档位文案」+「页面里存在任意 →」，
      A 标签缺箭头可被 B 标签的箭头掩盖（假通过）。
      现改为：对标签矩阵里**每一个**实证档 ≥1 的标签卡，断言贡献列表里存在
-     **指向该标签**的「→ 标签名」标注。 */
+     **指向该标签**的「→ 标签名」标注。
+
+     ⚠️ v0.4.3 改造：个人主页横排标签卡的 `SystemTier` 传了 `showCopy={false}`
+     （132px 窄卡装不下「暂无系统记录」；见设计令牌规范 §3.2），故**档位文案不再上屏**，
+     旧的「扫 TIER_TEXT 文案判档」在此页失效（会退化成 checked=0 假阴性）。
+     改为**结构化判定**：数档位条 4 段胶囊中「已点亮段数」（背景 ≠ 空槽色 c.border）：
+       lit=1 → none，lit=2 → emerging，lit=3 → established，lit=4 → authoritative。
+     档位条容器特征：`<span style="display:inline-flex; width:64px; height:6px; gap:2px">`
+     内含 4 个子 span（border-radius:999）。此判法对 legacy 标签的额外徽标 span 免疫
+     （只取 width:64 容器内的 4 段）。 */
   {
-    const TIER_TEXT = { emerging: '有初步产出', established: '有稳定的产出', authoritative: '有沉淀与影响力' };
-    const cards = Array.from(doc.querySelectorAll('.dp-grid--tight .dp-card[role="button"]'));
+    // 档位：lit 段数 → 档位名（none 不参与箭头要求）
+    const LIT_TO_TIER = { 2: 'emerging', 3: 'established', 4: 'authoritative' };
+    const EMPTY_SLOT = 'rgb(225, 224, 223)'; // c.border 空槽色（实测）
+    const cards = Array.from(doc.querySelectorAll('.dp-tag-floor .dp-card[role="button"]'));
     // 贡献列表里的箭头目标（→ 后紧跟的标签名，取自 TagChip 内文本）
     const arrowTargets = new Set();
     Array.from(doc.querySelectorAll('div[role="button"], .dp-card, .dp-row')).forEach((el) => {
@@ -1643,27 +1682,456 @@ async function main() {
     let checked = 0;
     const unclosed = [];
     cards.forEach((card) => {
-      const txt = norm(card.textContent);
-      const tier = Object.keys(TIER_TEXT).find((k) => txt.includes(TIER_TEXT[k]));
-      if (!tier) return; // 该标签实证=0，不要求箭头
-      // 卡内标签名：首个 span 文本（v0.4.1 可能为「◈ 主标签名」或纯「标签名」）
+      // 结构化取档：定位 width:64 的档位条容器，取其内 4 段胶囊（border-radius:999）
+      const bar = Array.from(card.querySelectorAll('span')).find((el) => /width:\s*64px/.test(el.getAttribute('style') || ''));
+      if (!bar) return;
+      const segs = Array.from(bar.querySelectorAll('span')).filter((el) => /border-radius:\s*999/.test(el.getAttribute('style') || ''));
+      const lit = segs.filter((el) => win.getComputedStyle(el).backgroundColor !== EMPTY_SLOT).length;
+      const tier = LIT_TO_TIER[lit];
+      if (!tier) return; // none 档（lit=1），不要求箭头
+      // 卡内标签名：首个 span 文本（v0.4.2 已无任何字形前缀，纯「标签名」）
       const labelEl = card.querySelector('span');
       const labelTxt = norm(labelEl ? labelEl.textContent : '');
-      const label = labelTxt.replace(/^[◈◇]\s*/, '');
+      const label = labelTxt.replace(/^[◈◇]\s*/, ''); // 兼容旧字形残留；v0.4.2 应为 no-op
       checked += 1;
       // 精确匹配：箭头必须指向**该标签本身**（规范 C.5 闭环）。
       // 不放宽为子串匹配——否则 A 标签的「→ A（旧）」会掩盖 B 的缺失，
       // 且「供应与采购」与「采购」这类前缀关系会互相假通过。
       const hit = arrowTargets.has(label);
-      if (!hit) unclosed.push(`${label}(${tier})`);
+      if (!hit) unclosed.push(`${label}(${tier},lit${lit})`);
     });
     if (checked > 0 && unclosed.length === 0) {
-      ok('闭环验收：逐标签校验，每个实证≥1 的标签都有指向它的「→ 标签名」贡献条目', `已校验 ${checked} 个正档位标签，箭头目标 ${arrowTargets.size} 个`);
+      ok('闭环验收：逐标签校验，每个实证≥1 的标签都有指向它的「→ 标签名」贡献条目', `已校验 ${checked} 个正档位标签（结构判档），箭头目标 ${arrowTargets.size} 个`);
     } else if (checked === 0) {
       fail('闭环验收逐标签', '未找到任何实证≥1 的标签卡（测试无效）');
     } else {
       fail('闭环验收逐标签：存在实证≥1 但无对应箭头条目的标签', unclosed.join(', '));
     }
+  }
+
+  /* =====================================================================
+     v0.4.2 实测门（走 DOM，非文本门）
+     ---------------------------------------------------------------------
+     覆盖：①「主标签」字样 0 命中 ②三模块计数 ⑦点赞点击 +1 且未跳转
+          ⑧点赞键盘可达 ⑩组织速查表头 ⑪来源口径上屏
+     ===================================================================== */
+
+  // —— 门 ① + ② + ⑪：个人主页（min.zhou，兜底用 maxwell.chen 之外的第一人）——
+  await navigate(win, '#/workspace/people/min.zhou');
+  await settle(560);
+  {
+    // ① 页面上「主标签」字样 0 次（正文级，排除脚本/面板）
+    const leak = /主标签/.test(pageText(doc));
+    if (!leak) ok('v0.4.2 门①「主标签」字样屏上 0 次');
+    else fail('v0.4.2 门①「主标签」字样应为 0', pageText(doc).match(/.{0,12}主标签.{0,12}/)?.[0]);
+
+    /* ② 恰好四模块（v0.4.3 楼层 1→3 重排后）。DOM 事实（本轮**实测 dump**，非抄规范）：
+         .dp-shell 子树内 .dp-card 共 12 个 = hero(1) + 技能标签 Panel(1) + 工作 Panel(1)
+                                        + 知识贡献 Panel(1) + TagMatrix 内标签卡 8（位于 .dp-tag-floor）。
+         故「模块级 Panel」= .dp-shell 内所有 .dp-card 中，**排除 .dp-tag-floor 内的标签卡**
+         与**排除被其它 .dp-card 嵌套的卡**，应恰 4 个。
+         最怕的错法：hero 主标签块复活（→5），或某模块被删（→3）。 */
+    const shell0 = doc.querySelector('.dp-shell');
+    const moduleCards = shell0
+      ? Array.from(shell0.querySelectorAll('.dp-card')).filter(
+          (el) => !el.closest('.dp-tag-floor') && !(el.parentElement && el.parentElement.closest('.dp-card'))
+        )
+      : [];
+    if (moduleCards.length === 4) ok('v0.4.3 门② 个人主页模块级 Panel 恰 4 个（头像+信息 / 技能标签 / 近期工作内容 / 近期知识贡献）');
+    else fail('v0.4.3 门② 模块级 Panel 应恰 4 个', `实得 ${moduleCards.length}`);
+
+    /* ③ 楼层结构（实测门，守住「技能标签在 hero 之后、工作/贡献在最后」的用户需求）：
+       .dp-shell 的直接子节点顺序 = [breadcrumb, hero(.dp-card.dp-person-head),
+       .dp-floor-tags, .dp-grid.dp-g-duo]。
+       楼层 2 必须「紧邻」楼层 1（hero 之后第一个楼层容器是 .dp-floor-tags）；
+       楼层 3 必须是最后一个楼层容器。 */
+    {
+      const shellKids = shell0 ? Array.from(shell0.children) : [];
+      const heroIdx = shellKids.findIndex((e) => e.classList.contains('dp-person-head'));
+      const tagsIdx = shellKids.findIndex((e) => e.classList.contains('dp-floor-tags'));
+      const duoIdx = shellKids.findIndex((e) => e.classList.contains('dp-g-duo'));
+      const okOrder = heroIdx >= 0 && tagsIdx === heroIdx + 1 && duoIdx > tagsIdx;
+      if (okOrder) {
+        ok('v0.4.3 楼层顺序：hero → 技能标签楼层 → 工作/贡献双栏（技能标签紧邻 hero 之后）', `hero@${heroIdx} tags@${tagsIdx} duo@${duoIdx}`);
+      } else {
+        fail('v0.4.3 楼层顺序', `hero@${heroIdx} tags@${tagsIdx} duo@${duoIdx}（期望 tags 紧邻 hero、duo 在最后）`);
+      }
+      // 技能标签确为独立通栏楼层（.dp-floor-tags 不能嵌在 .dp-g-duo 内）
+      const tagsInDuo = doc.querySelector('.dp-g-duo .dp-floor-tags');
+      if (!tagsInDuo) ok('   ↳ 技能标签楼层独立于双栏之外（未嵌在 .dp-g-duo 内）');
+      else fail('   ↳ 技能标签楼层独立性', '.dp-floor-tags 出现在 .dp-g-duo 内');
+      // 楼层 3 使用 .dp-g-duo，且含 2 个子栏；旧 .dp-g-profile 已移出使用点
+      const duo = doc.querySelector('.dp-g-duo');
+      if (duo && duo.children.length === 2) ok('   ↳ 楼层 3 为 .dp-g-duo 双栏（2 个子栏）');
+      else fail('   ↳ 楼层 3 .dp-g-duo 双栏', duo ? `子栏数=${duo.children.length}` : '未找到 .dp-g-duo');
+      if (!doc.querySelector('.dp-g-profile')) ok('   ↳ .dp-g-profile 已移出使用点（DOM 0 命中）');
+      else fail('   ↳ .dp-g-profile 应 0 命中', 'DOM 中仍存在 .dp-g-profile');
+    }
+
+    /* ④ 技能标签无分组标题条（v0.4.2 groupBar 特征：height:32px 的段标题条）——
+       实测门：.dp-tag-floor 内不得有 height:32px 的 div（去分组结构）。 */
+    {
+      const bars = Array.from(doc.querySelectorAll('.dp-tag-floor div')).filter((el) => /height:\s*32px/.test(el.getAttribute('style') || ''));
+      if (bars.length === 0) ok('v0.4.3 技能标签无分组标题条（groupBar 特征 0 命中）');
+      else fail('v0.4.3 技能标签分组标题条应为 0', `命中 ${bars.length} 个 height:32px 段标题`);
+    }
+
+    /* ⑤ 标签卡数量与 v0.4.2 一致（实测：周敏 8 张），且卡内保留 11px 分组名小字。
+       注：v0.4.3 返修——此前误删了 personTags['min.zhou'] 的 'd-design-system'，
+       导致计数虚降为 7 并被错误归因为「实测发现」。数据已恢复，此处以**返修后实测 DOM**
+       为准：personTags['min.zhou'] 8 个 key，getPersonProfile 返回 8，DOM .dp-tag-floor .dp-card = 8。
+       顺序实测（同组相邻排序）：产品设计→交互设计→规范制定→视觉表达→知识沉淀→设计系统→内容运营→内部门户。 */
+    {
+      const floorCards = doc.querySelectorAll('.dp-tag-floor .dp-card');
+      const groupSmall = Array.from(doc.querySelectorAll('.dp-tag-floor .dp-card')).filter((card) =>
+        Array.from(card.querySelectorAll('div')).some((d) => /font-size:\s*11px/.test(d.getAttribute('style') || ''))
+      );
+      if (floorCards.length === 8 && groupSmall.length === 8) {
+        ok('v0.4.3 标签卡数量与内部分组名小字（周敏 8 张，均含 11px 分组名）', `${floorCards.length} 卡 / ${groupSmall.length} 带分组名`);
+      } else {
+        fail('v0.4.3 标签卡数量/分组名小字', `卡=${floorCards.length} 带分组名=${groupSmall.length}（期望 8/8）`);
+      }
+      // 附加：首标签必须为 c-product（「产品设计」），且含被恢复的「设计系统」——
+      //   证伪「8 卡」由重复/幽灵卡凑数。
+      const labels = Array.from(floorCards).map((c) => norm(c.textContent));
+      const hasDesignSystem = labels.some((t) => t.includes('设计系统'));
+      if (hasDesignSystem && labels.length === 8) ok('v0.4.3 周敏标签含被恢复的「设计系统」，且卡数确为 8');
+      else fail('v0.4.3 周敏「设计系统」标签存在性', `hasDS=${hasDesignSystem} len=${labels.length}`);
+    }
+
+    /* ⑥ 工作内容 Panel 存在，desc 逐字为规定文案 */
+    {
+      const workPanel = doc.querySelector('.dp-floor-work');
+      const descOk = workPanel && norm(workPanel.textContent).includes(norm('来自 Jira 的负责人字段 · 当前至未来 1 个月'));
+      const titleOk = workPanel && norm(workPanel.textContent).includes(norm('近期工作内容'));
+      if (titleOk && descOk) ok('v0.4.3 近期工作内容 Panel 存在，desc 逐字为「来自 Jira 的负责人字段 · 当前至未来 1 个月」');
+      else fail('v0.4.3 近期工作内容 Panel', `title=${!!titleOk} desc=${!!descOk}`);
+    }
+
+    /* ⑥b 任务行上限 5 + extra 文案分档（周敏 total=5 → 恰好 5 行、extra「5 条」；
+       陈思远 siyuan.chen total=7 items=5 → 显示近 5、extra「7 条 · 显示近 5」）。
+       实测数据见 outputs/_v043_data_probe1.txt。 */
+    {
+      const workRows = () => Array.from(doc.querySelectorAll('.dp-floor-work div'))
+        .filter((el) => /padding:\s*10px 12px/.test(el.getAttribute('style') || '')).length;
+      const workPanelText = () => {
+        const p = doc.querySelector('.dp-floor-work');
+        return p ? norm(p.textContent) : '';
+      };
+      // 周敏（当前页）：恰 5 行 + extra「5 条」（无「显示近 5」后缀）
+      const mzRows = workRows();
+      const mzText = workPanelText();
+      const mzExtraOk = mzText.includes(norm('5 条')) && !mzText.includes(norm('显示近 5'));
+      if (mzRows === 5 && mzExtraOk) ok('v0.4.3 工作行上限=5 且 extra 分档（周敏 total=5 → 5 行 +「5 条」，无「显示近 5」）', `${mzRows} 行`);
+      else fail('v0.4.3 工作行上限/extra（周敏）', `rows=${mzRows} extra「5 条」=${mzText.includes(norm('5 条'))} 误含「显示近 5」=${mzText.includes(norm('显示近 5'))}`);
+
+      // 陈思远 >5 样本：切页验证「7 条 · 显示近 5」+ 5 行
+      await navigate(win, '#/workspace/people/siyuan.chen');
+      await settle(560);
+      const scRows = workRows();
+      const scText = workPanelText();
+      if (scRows === 5 && scText.includes(norm('7 条 · 显示近 5'))) {
+        ok('v0.4.3 >5 样本（陈思远 total=7）→ 5 行 + extra「7 条 · 显示近 5」', `${scRows} 行`);
+      } else {
+        fail('v0.4.3 工作行上限/extra（陈思远 total=7）', `rows=${scRows} 含「7 条 · 显示近 5」=${scText.includes(norm('7 条 · 显示近 5'))}`);
+      }
+      // 回到周敏，供后续 ⑦/⑧/⑨ 门使用
+      await navigate(win, '#/workspace/people/min.zhou');
+      await settle(560);
+    }
+
+    /* ⑦ blocked 任务整行照常渲染，仅状态位留空（证伪「整行被吞」）——
+       样本：周敏 DS-3121（status:'blocked'）。
+       判据：单号 DS-3121 上屏 + 其所在行仍有任务名/项目/日期，但该行**无状态 Pill 文案**
+       （待办/进行中/待评审 三者皆不出现于该行）。 */
+    {
+      const workPanel = doc.querySelector('.dp-floor-work');
+      const rowHas = (key) => {
+        if (!workPanel) return null;
+        return Array.from(workPanel.querySelectorAll('div')).find(
+          (el) => /padding:\s*10px 12px/.test(el.getAttribute('style') || '') && norm(el.textContent).includes(norm(key))
+        );
+      };
+      const blockedRow = rowHas('DS-3121');
+      if (!blockedRow) {
+        fail('v0.4.3 blocked 整行仍渲染', '未找到 DS-3121 所在行（blocked 行可能被整行吞掉）');
+      } else {
+        const txt = norm(blockedRow.textContent);
+        const hasTitle = txt.includes(norm('设计规范文档站改版'));
+        const hasProject = txt.includes(norm('设计系统'));
+        const hasDue = txt.includes(norm('2026-10-09'));
+        const hasStatusPill = /待办|进行中|待评审/.test(txt);
+        if (hasTitle && hasProject && hasDue && !hasStatusPill) {
+          ok('v0.4.3 blocked 任务整行仍渲染（单号/任务名/项目/日期在），仅状态位留空', 'DS-3121');
+        } else {
+          fail('v0.4.3 blocked 整行渲染/状态留空', `title=${hasTitle} project=${hasProject} due=${hasDue} statusPill=${hasStatusPill}`);
+        }
+      }
+    }
+
+    /* ⑧ 逾期任务：仅日期数字染色（c.warningText #8A5200 = rgb(138,82,0)），整行背景未被染色。
+       样本：周敏 DS-3080（due 2026-09-15 < 2026-09-17）。 */
+    {
+      const workPanel = doc.querySelector('.dp-floor-work');
+      const row = workPanel
+        ? Array.from(workPanel.querySelectorAll('div')).find(
+            (el) => /padding:\s*10px 12px/.test(el.getAttribute('style') || '') && norm(el.textContent).includes(norm('DS-3080'))
+          )
+        : null;
+      if (!row) {
+        fail('v0.4.3 逾期日期染色', '未找到 DS-3080 所在行');
+      } else {
+        // 日期数字 span（.dp-num，文本 = '2026-09-15'）的计算色应为 warningText
+        const dateEl = Array.from(row.querySelectorAll('span')).find((s) => /2026-09-15/.test(norm(s.textContent)));
+        const dateColor = dateEl ? win.getComputedStyle(dateEl).color : null;
+        const overdueOk = /138,\s*82,\s*0/.test(dateColor || '') || /232,\s*137,\s*12/.test(dateColor || '');
+        // 行容器自身背景必须透明/无背景（未被整行染色）
+        const rowBg = win.getComputedStyle(row).backgroundColor;
+        const bgClean = /rgba?\(0,\s*0,\s*0,\s*0\)|transparent/.test(rowBg);
+        const rowBgInline = row.getAttribute('style') || '';
+        const noRowBgInline = !/background/i.test(rowBgInline);
+        if (overdueOk && bgClean && noRowBgInline) {
+          ok('v0.4.3 逾期仅日期数字染色（c.warningText），整行未染背景', `dateColor=${dateColor} rowBg=${rowBg}`);
+        } else {
+          fail('v0.4.3 逾期日期染色/行背景', `overdueOk=${overdueOk} dateColor=${dateColor} rowBg=${rowBg} rowBgInline=${noRowBgInline}`);
+        }
+      }
+    }
+
+    /* ⑨ 任务行整块不可点：无 role / 无 tabindex / cursor 非 pointer / 无 <a href>（规范 §5 第 7 条）。 */
+    {
+      const workPanel = doc.querySelector('.dp-floor-work');
+      const rows = workPanel
+        ? Array.from(workPanel.querySelectorAll('div')).filter((el) => /padding:\s*10px 12px/.test(el.getAttribute('style') || ''))
+        : [];
+      const badRole = rows.filter((r) => r.getAttribute('role'));
+      const badTab = rows.filter((r) => r.hasAttribute('tabindex'));
+      const badCursor = rows.filter((r) => win.getComputedStyle(r).cursor === 'pointer');
+      const anchors = workPanel ? workPanel.querySelectorAll('a[href]') : [];
+      if (rows.length > 0 && badRole.length === 0 && badTab.length === 0 && badCursor.length === 0 && anchors.length === 0) {
+        ok('v0.4.3 任务行整块不可点（无 role/tabindex/cursor:pointer/链接）', `${rows.length} 行`);
+      } else {
+        fail('v0.4.3 任务行不可点', `rows=${rows.length} role=${badRole.length} tabindex=${badTab.length} cursorPointer=${badCursor.length} a[href]=${anchors.length}`);
+      }
+    }
+
+    // hero 单列化：.dp-person-head-row / .dp-person-head-tags 不得存在于 DOM
+    const headRow = doc.querySelector('.dp-person-head-row');
+    const headTags = doc.querySelector('.dp-person-head-tags');
+    if (!headRow && !headTags) ok('   ↳ hero 已单列化（.dp-person-head-row / .dp-person-head-tags 均不在 DOM）');
+    else fail('   ↳ hero 单列化', `row=${!!headRow} tags=${!!headTags}`);
+
+    // ⑪ 来源口径上屏
+    const srcOk = pageHas(doc, '系统数据抽取') && pageHas(doc, '人才盘点');
+    if (srcOk) ok('v0.4.2 门⑪ 来源口径上屏（含「系统数据抽取」+「人才盘点」）');
+    else fail('v0.4.2 门⑪ 来源口径上屏', `抽取=${pageHas(doc, '系统数据抽取')} 盘点=${pageHas(doc, '人才盘点')}`);
+
+    /* v0.4.3 档位文案可达性（双通道，两条不冲突）：
+       个人主页横排标签卡的 SystemTier 传了 showCopy={false} → **档位文案不上屏**
+       （132px 窄卡装不下；4 段档位条已结构性表达档位）。
+       用户决策：**加悬停提示兜底** —— 档位条容器带原生 `title={TIER_COPY[tier]}`，
+       文案不占屏效但在屏可读。
+       故本处断言 **两条互补门**：
+         ① 上屏文字 0 命中（「不占屏效」）——断言的是 textContent，**不是** title；
+         ② 档位条容器确有 title 且 = 该档位中文文案（「悬停可读」）——**读 DOM 的 title 属性**。
+       ⚠️ 关键区分：`pageHas()` 读的是 textContent（不含 title 属性），故 ① 不会因 title 而变红；
+       ② 直接读 `getAttribute('title')`，是**实测门**（非源码文本）。 */
+    const profCopyHits = pageHas(doc, '暂无系统记录');
+    const oldCopyLeak = pageHas(doc, '暂无公开贡献') || pageHas(doc, '持续关注') || pageHas(doc, '有初步产出');
+    if (!profCopyHits && !oldCopyLeak) ok('   ↳ v0.4.3 档位文案在个人主页「上屏文字」0 命中（showCopy={false} 生效；旧文案亦 0 命中）');
+    else fail('   ↳ v0.4.3 个人主页档位文案上屏应为 0', `newHits=${profCopyHits} oldLeak=${oldCopyLeak}`);
+
+    /* v0.4.3 新增实测门：档位条容器带原生 title，内容 = 该档位中文文案（悬停兜底）。
+       读 DOM 的 `title` 属性（非源码文本）。样本用**两人**证明 title 随档位变化、非硬编码：
+         · min.zhou 全 none → title 集合 = ['暂无系统记录']
+         · zhiwei.shen 含 authoritative → title 集合含 '有沉淀与影响'
+       同时断言 title 覆盖整条 4 段胶囊（title 挂在 width:64 的 bar 容器上，且其内恰 4 段）。 */
+    {
+      const readTierTitles = () =>
+        Array.from(doc.querySelectorAll('.dp-tag-floor .dp-card span'))
+          .filter((el) => /width:\s*64px/.test(el.getAttribute('style') || ''))
+          .map((bar) => ({
+            title: bar.getAttribute('title'),
+            segs: Array.from(bar.querySelectorAll('span')).filter((s) => /border-radius:\s*999/.test(s.getAttribute('style') || '')).length,
+          }));
+      // 当前页 = min.zhou（全 none）
+      const mz = readTierTitles();
+      const mzAllTitled = mz.length > 0 && mz.every((b) => b.title === '暂无系统记录');
+      const mzAllSeg4 = mz.length > 0 && mz.every((b) => b.segs === 4);
+      if (mzAllTitled && mzAllSeg4) {
+        ok('v0.4.3 档位条悬停 title（实测）：min.zhou 全 ' + mz.length + ' 条档位条 title=「暂无系统记录」且各含 4 段胶囊', `${mz.length} 条`);
+      } else {
+        fail('v0.4.3 档位条 title（min.zhou）', `条数=${mz.length} 全为「暂无系统记录」=${mzAllTitled} 全 4 段=${mzAllSeg4}`);
+      }
+      // 非 none 样本：切 zhiwei.shen，证 title 随档位变化
+      await navigate(win, '#/workspace/people/zhiwei.shen');
+      await settle(560);
+      const zs = readTierTitles();
+      const zsTitles = new Set(zs.map((b) => b.title));
+      const zsHasAuth = zsTitles.has('有沉淀与影响');
+      const zsNoUndef = zs.every((b) => typeof b.title === 'string' && b.title.length > 0);
+      if (zsHasAuth && zsNoUndef) {
+        ok('v0.4.3 档位条悬停 title 随档位变化（实测）：zhiwei.shen title 集合含「有沉淀与影响」', JSON.stringify(Array.from(zsTitles)));
+      } else {
+        fail('v0.4.3 档位条 title（zhiwei.shen 非 none）', `title 集合=${JSON.stringify(Array.from(zsTitles))} 含权威=${zsHasAuth}`);
+      }
+      // 回到 min.zhou，供后续门使用
+      await navigate(win, '#/workspace/people/min.zhou');
+      await settle(560);
+    }
+  }
+
+  /* v0.4.3 档位文案归属核查（重要事实修正）：
+     设计令牌规范 §3.2/§6 假定「档位文案的完整语义保留在标签反查页 TagBrowse」。
+     **实测证伪**：TagBrowse（src/pages/TagBrowse.jsx）从不使用 `SystemTier`，
+     它只渲染 `TagChip`（纯标签胶囊，无档位条/无档位文案）。
+     且全仓库 `SystemTier` 唯一使用点就是 TagMatrix（ui.jsx），v0.4.3 起传 `showCopy={false}`。
+     ⇒ 档位文案**不上屏**（组件仍有 showCopy 能力，只是当前无处启用 true）。
+     v0.4.3 悬停兜底后：文案经**档位条原生 title** 在屏可读（见上一门）——即「不占屏效但可读」。
+     本门据此断言反查页**不含**档位文案（证伪规范假设），并把该分歧上报（见交付报告「偏离规范处」）。
+     档位语义由三条通道完整表达：① 结构化的 4 段档位条 ② 档位条 title 悬停提示 ③ 数据层 evidenceTier。 */
+  await navigate(win, '#/workspace/tags');
+  await settle(520);
+  {
+    const chipOnly = doc.querySelector('.dp-tagbrowse-row') !== null || doc.querySelectorAll('.dp-chip').length > 0;
+    const noTierCopy = !pageHas(doc, '暂无系统记录');
+    const noTierBar = doc.querySelector('.dp-tag-floor') === null; // 反查页无档位条容器
+    if (chipOnly && noTierCopy && noTierBar) {
+      ok('   ↳ 反查页只用 TagChip（无档位文案 / 无档位条）——证伪规范「文案保留在反查页」的假设，已上报');
+    } else {
+      fail('   ↳ 反查页档位文案核查', `chipOnly=${chipOnly} noTierCopy=${noTierCopy} noTierBar=${noTierBar}`);
+    }
+  }
+
+  // 回到个人主页（点赞门 ⑦/⑧ 的 .dp-like 在标签卡内，须在此页测）
+  await navigate(win, '#/workspace/people/min.zhou');
+  await settle(560);
+
+  // —— 门 ⑦ + ⑧：点赞可点 +1 且未跳转 / 键盘可达 ——
+  {
+    const hashBefore = win.location.hash;
+    const likeBtn = doc.querySelector('.dp-like');
+    if (!likeBtn) {
+      fail('v0.4.2 门⑦ 点赞按钮存在', '未找到 .dp-like');
+      fail('v0.4.2 门⑧ 点赞键盘可达', '未找到 .dp-like');
+    } else {
+      const pressed0 = likeBtn.getAttribute('aria-pressed');
+      const count0 = parseInt(norm(likeBtn.textContent).replace(/\D/g, ''), 10);
+      // ⑦ 鼠标点击：aria-pressed false→true，计数 +1，且路由 hash 未变
+      click(win, likeBtn);
+      await sleep(220);
+      /* ⚠️ 抗崩溃（M11 自证要求）：若 onClick 的 e.stopPropagation() 被删，
+         点击会冒泡到父级标签卡 role=button onClick → go('#/workspace/tags/'+id)
+         → 个人主页卸载 → .dp-like 从 DOM 消失。此处必须 fail 而不是抛异常，
+         否则整个 smoke 崩溃、无汇总 → 变异脚本读不到 expectRed 行（空转）。 */
+      const after = doc.querySelector('.dp-like');
+      const hashAfter = win.location.hash;
+      if (!after) {
+        fail('v0.4.2 门⑦ 点赞点击', `点击后 .dp-like 消失（点赞误触跳转）hash=${hashAfter}`);
+      } else {
+        const pressed1 = after.getAttribute('aria-pressed');
+        const count1 = parseInt(norm(after.textContent).replace(/\D/g, ''), 10);
+        const okPressed = pressed0 === 'false' && pressed1 === 'true';
+        const okCount = Number.isFinite(count0) && count1 === count0 + 1;
+        const okNoNav = hashAfter === hashBefore;
+        if (okPressed && okCount && okNoNav) {
+          ok('v0.4.2 门⑦ 点赞点击：aria-pressed false→true、计数 +1、路由未变', `${count0}→${count1} hash=${hashAfter}`);
+        } else {
+          fail('v0.4.2 门⑦ 点赞点击', `pressed=${pressed0}→${pressed1} count=${count0}→${count1} nav=${okNoNav}`);
+        }
+      }
+      /* ⑧ 键盘可达。⚠️ 实测（jsdom 30.0.1）native <button> + Enter keydown **不会**
+         自动合成 click（clicks=0），故无法直接断言「Enter keydown → aria-pressed 翻转」。
+         本门改为断言「键盘可达」的**可观测充分条件**，比假装 Enter 更诚实：
+           a) .dp-like 是原生 <button type="button">（天然 Tab 可达 + Enter/Space 激活，
+              无需手写 keydown —— 这正是规范 §4.5/§4.6 条文 2 的实现要求）；
+           b) 可被 focus()（document.activeElement 变为它）；
+           c) 派发 Enter keydown **不得**导致误跳转（keydown stopPropagation 生效）；
+           d) 对浏览器 Enter 会合成的 click 有响应（aria-pressed 翻转）。 */
+      const btn2 = doc.querySelector('.dp-like');
+      // ⚠️ 抗崩溃：M11 场景下 `.dp-like` 已随导航消失，此处必须 fail 而非抛异常
+      //   （否则整个 smoke 崩溃、无汇总 → 变异脚本读不到 expectRed 行）。
+      if (!btn2) {
+        fail('v0.4.2 门⑧a 点赞控件应为原生 button', 'null（点赞后 .dp-like 消失）');
+        fail('   ↳ 门⑧b 点赞控件可 focus', 'null');
+        fail('   ↳ 门⑧c Enter keydown 未误触跳转', 'null');
+        fail('   ↳ 门⑧d 点赞未响应激活', 'null');
+        fail('   ↳ 点赞后路由被误触', win.location.hash);
+      } else {
+        const isNativeBtn = btn2.tagName === 'BUTTON' && btn2.getAttribute('type') === 'button';
+        if (isNativeBtn) ok('v0.4.2 门⑧a 点赞控件是原生 <button type="button">（天然键盘可达，无需手写 keydown）');
+        else fail('v0.4.2 门⑧a 点赞控件应为原生 button', `${btn2.tagName} type=${btn2.getAttribute('type')}`);
+        let focusedOk = false;
+        if (typeof btn2.focus === 'function') {
+          btn2.focus();
+          focusedOk = doc.activeElement === btn2;
+        }
+        if (focusedOk) ok('   ↳ 门⑧b 点赞控件可 focus（document.activeElement 命中）');
+        else fail('   ↳ 门⑧b 点赞控件可 focus', 'focus() 后 activeElement 未变');
+        const hashPreKey = win.location.hash;
+        btn2.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+        await sleep(120);
+        if (win.location.hash === hashPreKey && doc.querySelector('.dp-like')) {
+          ok('   ↳ 门⑧c Enter keydown 未误触跳转（keydown stopPropagation 生效）');
+        } else {
+          fail('   ↳ 门⑧c Enter keydown 误触跳转', `${hashPreKey} → ${win.location.hash}`);
+        }
+        // d) 浏览器 Enter 会合成的 click 必须能翻转 aria-pressed（模拟真实激活结果）
+        const btn3 = doc.querySelector('.dp-like');
+        if (!btn3) {
+          fail('   ↳ 门⑧d 点赞未响应激活', 'null');
+        } else {
+          const pressedBeforeAct = btn3.getAttribute('aria-pressed');
+          click(win, btn3);
+          await sleep(160);
+          const btnAfter = doc.querySelector('.dp-like');
+          if (btnAfter && btnAfter.getAttribute('aria-pressed') !== pressedBeforeAct) {
+            ok('   ↳ 门⑧d 点赞响应浏览器激活（click）→ aria-pressed 翻转', `${pressedBeforeAct}→${btnAfter.getAttribute('aria-pressed')}`);
+          } else {
+            fail('   ↳ 门⑧d 点赞未响应激活', `aria-pressed 未翻转（=${btnAfter ? btnAfter.getAttribute('aria-pressed') : 'null'}）`);
+          }
+        }
+        if (typeof btn2.focus === 'function') btn2.focus();
+        // 点赞不得误触标签卡跳转（点完后仍在个人主页路由）
+        if (/^#\/workspace\/people\//.test(win.location.hash)) ok('   ↳ 点赞后仍在个人主页路由（stopPropagation 生效）');
+        else fail('   ↳ 点赞后路由被误触', win.location.hash);
+      }
+    }
+  }
+
+  // —— 门 ⑫：工作内容空态（zhiwei.shen / yiming.gu 特意 0 条任务）——
+  await navigate(win, '#/workspace/people/zhiwei.shen');
+  await settle(560);
+  {
+    const workPanel = doc.querySelector('.dp-floor-work');
+    const emptyCopy = '暂无在办任务。任务数据来自 Jira 的负责人字段，仅展示当前至未来 1 个月的排期。';
+    const hasEmpty = workPanel && norm(workPanel.textContent).includes(norm(emptyCopy));
+    const noRows = workPanel ? workPanel.querySelectorAll('[style*="padding: 10px 12px"]').length === 0 : false;
+    if (hasEmpty && noRows) ok('v0.4.3 工作内容空态：zhiwei.shen 显示空态文案且无任务行');
+    else fail('v0.4.3 工作内容空态', `hasEmpty=${!!hasEmpty} rows=${workPanel ? workPanel.querySelectorAll('[style*="padding: 10px 12px"]').length : 'n/a'}`);
+    // 空态措辞不得含判词（铁律：不作为绩效评价）
+    const badWords = ['没有工作', '暂无产出', '工作量为空', '无任务安排'];
+    const hitBad = badWords.filter((w) => pageHas(doc, w));
+    if (hitBad.length === 0) ok('   ↳ 空态措辞无判词（无「没有工作/暂无产出」等）');
+    else fail('   ↳ 空态措辞含判词', hitBad.join(','));
+    // extra 显示「0 条」
+    const extraZero = workPanel && norm(workPanel.textContent).includes(norm('0 条'));
+    if (extraZero) ok('   ↳ 空态 extra 显示「0 条」');
+    else fail('   ↳ 空态 extra 应为「0 条」', '未找到');
+  }
+
+  // —— 门 ⑩：组织速查表头「技能标签」有、「专长」无 ——
+  await navigate(win, '#/org');
+  await settle(520);
+  {
+    const hasTagHead = pageHas(doc, '技能标签');
+    const hasExpert = pageHas(doc, '专长');
+    if (hasTagHead && !hasExpert) ok('v0.4.2 门⑩ 组织速查表头为「技能标签」，无「专长」字样');
+    else fail('v0.4.2 门⑩ 组织速查表头', `技能标签=${hasTagHead} 专长=${hasExpert}`);
+    // 表头单元格：antd Table 表头文本含「技能标签」
+    const thTexts = Array.from(doc.querySelectorAll('th')).map((th) => norm(th.textContent));
+    if (thTexts.some((t) => t === '技能标签' || t.includes('技能标签'))) ok('   ↳ 表头 <th> 含「技能标签」');
+    else fail('   ↳ 表头 <th> 含「技能标签」', thTexts.join('|').slice(0, 120));
   }
 
   // —— 标签反查页：#/workspace/tags ——
@@ -1796,32 +2264,45 @@ async function main() {
   /* ================= 标签体系 · 数据层回归（P1-1 / P1-2 / P1-3 / P1-4）=================
      全部走 MOCK（esbuild 打包进来的 mock.js），比走 DOM 更早、更稳地暴露问题。 */
   {
-    const SELF_ORDER = ['curious', 'following', 'practicing', 'advocating'];
     const okData = typeof MOCK.getPersonProfile === 'function' && MOCK.personTags;
 
-    // P1-1：吹牛态收敛 —— 除指定样本（min.zhou）外，其余人不得有「自评≥practicing 且实证=none」
+    // v0.4.2 字段契约（替代 P1-1 吹牛态收敛门）：自评轨 / 主标签退场后，
+    //   tags[i] 不得再含 selfRating / primary；且 baseLikesOf 存在、值域 {0,1}。
     if (!okData) {
-      fail('P1-1 吹牛态收敛', '取不到 getPersonProfile / personTags（' + (MOCK.__error || '') + '）');
+      fail('v0.4.2 字段契约', '取不到 getPersonProfile / personTags（' + (MOCK.__error || '') + '）');
     } else {
-      const others = Object.keys(MOCK.personTags).filter((id) => id !== 'min.zhou');
-      const offenders = [];
-      others.forEach((id) => {
-        const p = MOCK.getPersonProfile(id);
-        p.tags.forEach((t) => {
-          if (SELF_ORDER.indexOf(t.selfRating) >= 2 && t.evidenceTier === 'none') offenders.push(`${p.person.name}:${t.tag.id}`);
+      const sampleIds = Object.keys(MOCK.personTags);
+      let badField = [];
+      let likesBad = [];
+      sampleIds.forEach((id) => {
+        MOCK.getPersonProfile(id).tags.forEach((t) => {
+          if ('selfRating' in t || 'primary' in t) badField.push(`${id}:${t.tag.id}`);
+          if (!('likes' in t) || ![0, 1].includes(t.likes)) likesBad.push(`${id}:${t.tag.id}=${t.likes}`);
         });
       });
-      // 允许 1 位指定样本（tong.wu，≤2 个标签）
-      const tongWu = offenders.filter((x) => x.startsWith('吴桐')).length;
-      if (offenders.length <= 2 && tongWu === Math.min(offenders.length, 2)) {
-        ok('P1-1 吹牛态收敛：除指定样本外无「高自评 + 零实证」标签', `样本外吹牛标签 ${offenders.length} 个${offenders.length ? '（' + offenders.join(', ') + '）' : ''}`);
+      if (badField.length === 0) ok('v0.4.2 字段契约：tags[i] 不再含 selfRating / primary', `已扫 ${sampleIds.length} 人`);
+      else fail('v0.4.2 字段契约：tags[i] 残留 selfRating / primary', badField.slice(0, 6).join(', '));
+      if (likesBad.length === 0) ok('   ↳ 每个标签实例含 likes 且值域 {0,1}');
+      else fail('   ↳ likes 字段缺失或越界', likesBad.slice(0, 6).join(', '));
+      if (MOCK.primaryTags === undefined && MOCK.SELF_RATINGS === undefined) {
+        ok('   ↳ 导出契约：primaryTags / SELF_RATINGS 均已从 mock.js 删除');
       } else {
-        fail('P1-1 吹牛态收敛', `样本外仍有 ${offenders.length} 个：${offenders.slice(0, 6).join(', ')}`);
+        fail('   ↳ 导出契约：primaryTags / SELF_RATINGS 应已删除', `primaryTags=${typeof MOCK.primaryTags} SELF_RATINGS=${typeof MOCK.SELF_RATINGS}`);
       }
-      // min.zhou 仍为纯吹牛对照样本（不动她）
-      const mz = MOCK.getPersonProfile('min.zhou');
-      if (mz.tags.length > 0 && mz.tags.every((t) => t.evidenceTier === 'none')) ok('   ↳ 指定纯吹牛样本 min.zhou 保持全 none（未被误改）');
-      else fail('   ↳ 指定纯吹牛样本 min.zhou 应保持全 none');
+      // 点赞基线确定性（数据层，不经 DOM）
+      if (typeof MOCK.baseLikesOf === 'function') {
+        const a1 = MOCK.baseLikesOf('min.zhou', 'c-visual');
+        const a2 = MOCK.baseLikesOf('min.zhou', 'c-visual');
+        const b = MOCK.baseLikesOf('min.zhou', 'c-spec');
+        const noRand = !/Math\.random/.test(MOCK.baseLikesOf.toString());
+        if (a1 === 1 && a2 === 1 && b === 0 && noRand) {
+          ok('v0.4.2 点赞基线确定性：baseLikesOf 可复现、无 Math.random', `c-visual=${a1} c-spec=${b}`);
+        } else {
+          fail('v0.4.2 点赞基线确定性', `c-visual=${a1}/${a2} c-spec=${b} noRand=${noRand}`);
+        }
+      } else {
+        fail('v0.4.2 点赞基线确定性', '未导出 baseLikesOf');
+      }
     }
 
     // P1-2：parseOwnerName 边界——残缺/空格式返回 null，绝不产生空串幽灵人
@@ -1844,56 +2325,61 @@ async function main() {
     }
 
     /* ==================================================================
-       v0.4 视觉噪音分档 —— 吹牛态门（本轮最关键的回归点）
+       v0.4.3 单一档位门（结构判档；替代 v0.4.2「数档位文案」门）
        ------------------------------------------------------------------
-       改造内容（ui.jsx）：按 selfIdx 分两档渲染，仅改**渲染分支**，
-       `boast = selfIdx>=3 && tier==='none'` 判定一字未动：
-         · selfIdx<=2 && tier==='none' → 收轨：不画空槽，只留极淡「暂无公开贡献」
-         · selfIdx>=3 && tier==='none' → 保留完整双行（点阵+虚线空槽+「仅自评 · 暂无公开贡献」+提示行）
-       最怕的错法：分档把「吹牛」也收轨了 → 吹牛态的诚实并列被消解。
-       故此处钉住 UI-accurate 数值（与 outputs/_audit-emptystate-verify3.mjs 同口径）：
-         · 周敏 min.zhou：吹牛双行 = 7、提示行 = 7（改造前后**不变**）
-       口径：屏幕出现次数 = expanded(head,主标签≤2) + compact(矩阵,全部标签)，
-             用「直接文本节点恰等于文案」的元素个数计。
+       背景：v0.4.2 时本门数「暂无系统记录」文案出现次数 = 该人 none 档标签数。
+       v0.4.3 个人主页横排标签卡传了 `SystemTier showCopy={false}`（设计令牌规范 §3.2），
+       **档位文案不再上屏** → 旧文本计数门必然读到 0（假阴性）。
+       故改为**结构化判档**：每张标签卡的档位条容器（`<span style="…width:64px…">`）
+       内含 4 段等分胶囊（border-radius:999），数「已点亮段数」（背景 ≠ 空槽色 c.border）：
+         lit=1 → none，lit=2 → emerging，lit=3 → established，lit=4 → authoritative。
+       本门断言：各人标签卡**全部结构合规**（每卡 4 段、lit∈[1,4]），
+       且档位分布与数据层 `getPersonProfile().tags[].evidenceTier` **逐卡一致**
+       （DOM 档位 ↔ 数据档位 双向校验，杜绝渲染层错档）。
+       实测回填值（v0.4.3 返修后 esbuild 探针 + DOM 探针，见交付报告）：
+         · 周敏 min.zhou   ：8 卡，全 none（全 lit=1）——恢复 'd-design-system' 后由 7 回到 8
+         · 沈知微 zhiwei.shen：9 卡，8 none + 1 authoritative（d-dataplatform）
+       最怕的错法：档位条段数不对（≠4）、空槽色判据写错、或渲染档位与数据档位错位。
        ================================================================== */
     {
-      const BOAST_COPY = '仅自评 · 暂无公开贡献';
-      const HINT_COPY = '这项仅有自评，系统暂未找到对应的公开产出。';
-      const countDirect = (text) => {
-        let n = 0;
-        for (const el of Array.from(doc.querySelectorAll('*'))) {
-          if (Array.from(el.childNodes).some((c) => c.nodeType === 3 && c.textContent.trim() === text)) n++;
+      const EMPTY_SLOT = 'rgb(225, 224, 223)'; // c.border 空槽色（实测）
+      const LIT_TO_TIER = { 1: 'none', 2: 'emerging', 3: 'established', 4: 'authoritative' };
+      const readCards = () =>
+        Array.from(doc.querySelectorAll('.dp-tag-floor .dp-card[role="button"]')).map((card) => {
+          const label = norm((card.querySelector('span') || {}).textContent || '');
+          const bar = Array.from(card.querySelectorAll('span')).find((el) => /width:\s*64px/.test(el.getAttribute('style') || ''));
+          const segs = bar
+            ? Array.from(bar.querySelectorAll('span')).filter((el) => /border-radius:\s*999/.test(el.getAttribute('style') || ''))
+            : [];
+          const lit = segs.filter((el) => win.getComputedStyle(el).backgroundColor !== EMPTY_SLOT).length;
+          return { label, segCount: segs.length, lit, tier: LIT_TO_TIER[lit] || null };
+        });
+
+      for (const [pid, expect] of [
+        ['min.zhou', { total: 8, none: 8 }],
+        ['zhiwei.shen', { total: 9, none: 8 }],
+      ]) {
+        await navigate(win, '#/workspace/people/' + pid);
+        await settle(560);
+        const cards = readCards();
+        const badSeg = cards.filter((c) => c.segCount !== 4);
+        const badLit = cards.filter((c) => !c.tier);
+        const noneCount = cards.filter((c) => c.tier === 'none').length;
+        // 数据层档位（用于逐卡一致性校验）
+        const dataTiers = okData
+          ? MOCK.getPersonProfile(pid).tags.map((t) => t.evidenceTier)
+          : null;
+        const dataNone = dataTiers ? dataTiers.filter((t) => t === 'none').length : -1;
+        const structOk = cards.length === expect.total && badSeg.length === 0 && badLit.length === 0;
+        const alignOk = dataTiers && noneCount === dataNone;
+        if (structOk && noneCount === expect.none) {
+          ok(`v0.4.3 单一档位门（结构）：${pid} ${cards.length} 卡全部合规（每卡 4 段、lit∈[1,4]），none 档 = ${noneCount}`, `dataNone=${dataNone}`);
+        } else {
+          fail(`v0.4.3 单一档位门（结构）${pid}`, `cards=${cards.length}(期望${expect.total}) segErr=${badSeg.length} litErr=${badLit.length} none=${noneCount}(期望${expect.none})`);
         }
-        return n;
-      };
-      await navigate(win, '#/workspace/people/min.zhou');
-      await settle(560);
-      const boastRows = countDirect(BOAST_COPY);
-      const hintRows = countDirect(HINT_COPY);
-      if (boastRows === 7) {
-        ok('v0.4 分档门：周敏 min.zhou 吹牛双行屏上仍 = 7（分档未误伤吹牛态）', `吹牛双行=${boastRows}`);
-      } else {
-        fail('v0.4 分档门：周敏吹牛双行应 = 7', `实得 ${boastRows}（分档判据可能把吹牛也收轨了）`);
+        if (alignOk) ok(`   ↳ ${pid} DOM 结构档位与数据层 evidenceTier 逐档一致（none ${noneCount} = data ${dataNone}）`);
+        else fail(`   ↳ ${pid} DOM 档位与数据层不一致`, `domNone=${noneCount} dataNone=${dataNone}`);
       }
-      if (hintRows === 7) ok('   ↳ 周敏吹牛提示行屏上仍 = 7', `提示行=${hintRows}`);
-      else fail('   ↳ 周敏吹牛提示行应 = 7', `实得 ${hintRows}`);
-
-      // 反向：一位「无吹牛态」的人（沈知微 zhiwei.shen）吹牛双行必须 = 0
-      await navigate(win, '#/workspace/people/zhiwei.shen');
-      await settle(560);
-      const shBoast = countDirect(BOAST_COPY);
-      const shCollapse = countDirect('暂无公开贡献');
-      if (shBoast === 0) ok('   ↳ 沈知微 zhiwei.shen 吹牛双行 = 0（无吹牛态）', `boast=${shBoast}`);
-      else fail('   ↳ 沈知微非吹牛样本吹牛双行应 = 0', `实得 ${shBoast}`);
-      if (shCollapse === 9) ok('   ↳ 沈知微收轨淡文案屏上 = 9（噪音收敛生效；v0.4.1 hero 主标签由 ≤3 收窄为 ≤2，沈知微 3 个主标签少渲染 1 处 → -1）', `收轨=${shCollapse}`);
-      else fail('   ↳ 沈知微收轨淡文案应 = 9', `实得 ${shCollapse}`);
-
-      // 反向：周敏收轨行 = 3（收轨与吹牛并存，二者互斥不混算）
-      await navigate(win, '#/workspace/people/min.zhou');
-      await settle(560);
-      const mzCollapse = countDirect('暂无公开贡献');
-      if (mzCollapse === 3) ok('   ↳ 周敏收轨淡文案屏上 = 3（与吹牛 7 并存、互不混算）', `收轨=${mzCollapse}`);
-      else fail('   ↳ 周敏收轨淡文案应 = 3', `实得 ${mzCollapse}`);
     }
 
     /* ==================================================================
@@ -1921,12 +2407,12 @@ async function main() {
           g &&
           g.title === '「AI 与智能」暂时还没有人登记' &&
           typeof g.desc === 'string' &&
-          g.desc.includes('「AI 与算法」这个分组目前还没有人登记') &&
-          g.desc.includes('词表已预留该分组的 7 个标签') &&
-          g.desc.includes('等待第一位贡献者') &&
-          g.desc.includes('部门能力盘点');
-        if (gOk) ok('v0.4.1 反查页空态：空组（AI 与算法）走组织诊断文案', `「…7 个标签…等待第一位贡献者…」`);
-        else fail('v0.4.1 反查页空态：空组分流', `title=${JSON.stringify(g && g.title)} desc=${JSON.stringify(g && g.desc).slice(0, 120)}`);
+          g.desc.includes('「AI 与算法」这个分组目前还没有成员') &&
+          g.desc.includes('该分组已预留 7 个技能标签') &&
+          g.desc.includes('暂无成员的标签落在此分组') &&
+          g.desc.includes('能力盘点');
+        if (gOk) ok('v0.4.2 反查页空态：空组（AI 与算法）走组织诊断文案', `「…7 个技能标签…能力盘点…」`);
+        else fail('v0.4.2 反查页空态：空组分流', `title=${JSON.stringify(g && g.title)} desc=${JSON.stringify(g && g.desc).slice(0, 140)}`);
 
         // (2) 交集空分支：非空组里的标签单点无人（d-app，业务与场景内唯一 0 人标签）
         const i = fn(['d-app']);
@@ -1942,9 +2428,9 @@ async function main() {
         const mOk =
           multi &&
           multi.title === '这个标签组合暂时没有匹配的人' &&
-          multi.desc.includes('「AI 与算法」这个分组目前还没有人登记');
-        if (mOk) ok('v0.4.1 反查页空态：多选含空组 → 空组诊断优先、title 为组合式');
-        else fail('v0.4.1 反查页空态：多选优先级', `title=${JSON.stringify(multi && multi.title)} desc=${JSON.stringify(multi && multi.desc).slice(0, 120)}`);
+          multi.desc.includes('「AI 与算法」这个分组目前还没有成员');
+        if (mOk) ok('v0.4.2 反查页空态：多选含空组 → 空组诊断优先、title 为组合式');
+        else fail('v0.4.2 反查页空态：多选优先级', `title=${JSON.stringify(multi && multi.title)} desc=${JSON.stringify(multi && multi.desc).slice(0, 120)}`);
 
         // (4) 非空组合（应有人在，不会进空态；此处只验 title 分流不抛错）
         const live = fn(['d-pos']);
@@ -2052,21 +2538,54 @@ async function main() {
   if (cardF && rowF) ok('可点卡片/列表行有键盘焦点环（:focus-visible）');
   else fail('可点卡片/列表行有键盘焦点环', `.dp-card=${cardF} .dp-row=${rowF}`);
 
-  // ③b v0.4.1 个人主页专用栅格（非对称两栏）+ ≤900px 塌缩（不复用 .dp-g-article）
+  // ③b v0.4.3 个人主页专用栅格（等宽两栏 .dp-g-duo）+ ≤900px 塌缩（不复用 .dp-g-article）
+  //   v0.4.3：个人主页楼层 3 由「非对称 .dp-g-profile（1.85fr/1fr）」改回「等宽双栏 .dp-g-duo（1fr/1fr）」。
+  //   .dp-g-profile 定义按设计令牌规范 §「考古」要求**保留在 CSS 里**（定义不删、仅移出使用点，
+  //   DOM 0 命中由上方楼层结构门负责）；本处规则级门随之改量 .dp-g-duo。
   {
-    const profGrid = /\.dp-g-profile\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.85fr\)\s*minmax\(0,\s*1fr\)/.test(css);
+    const duoGrid = /\.dp-g-duo\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(0,\s*1fr\)/.test(css);
+    // 考古定义：.dp-g-profile 定义被保留（不删）——断言「仍存在」，防误删
+    const profDefKept = /\.dp-g-profile\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.85fr\)\s*minmax\(0,\s*1fr\)/.test(css);
     // .dp-g-article 必须保持原定义未被污染（被 ArticleDetail 共用）
     const artUnchanged = /\.dp-g-article\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*232px/.test(css);
-    // ≤900px 塌缩块里必须含 .dp-g-profile
-    const collapseOk = /@media \(max-width: 900px\)\{[^@]*?\.dp-g-profile/.test(css);
-    if (profGrid && artUnchanged && collapseOk) ok('v0.4.1 个人主页栅格 .dp-g-profile（1.85fr/1fr）已定义且 ≤900px 塌缩；.dp-g-article 未被污染');
-    else fail('v0.4.1 .dp-g-profile 栅格', `profileGrid=${profGrid} articleUnchanged=${artUnchanged} collapse=${collapseOk}`);
+    // ≤900px 塌缩块里必须含 .dp-g-duo（与 .dp-g-profile 并列为塌缩目标）
+    const collapseOk = /@media \(max-width: 900px\)\{[^@]*?\.dp-g-duo/.test(css);
+    if (duoGrid && profDefKept && artUnchanged && collapseOk) ok('v0.4.3 个人主页楼层 3 栅格 .dp-g-duo（1fr/1fr）已定义且 ≤900px 塌缩；.dp-g-profile 考古定义保留；.dp-g-article 未被污染');
+    else fail('v0.4.3 .dp-g-duo 栅格', `duoGrid=${duoGrid} profDefKept=${profDefKept} articleUnchanged=${artUnchanged} collapse=${collapseOk}`);
     // 死代码清理：AXIS_GLYPH 常量定义 / TagArrow 组件不得残留（注释中的历史提及不计）
     const uiSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'ui.jsx'), 'utf8');
     const axDef = /(?:const|let|var)\s+AXIS_GLYPH\s*=/.test(uiSrc) || /AXIS_GLYPH\s*\[/.test(uiSrc);
     const tagArrowDef = /export function TagArrow/.test(uiSrc);
     if (!axDef && !tagArrowDef) ok('   ↳ AXIS_GLYPH / TagArrow 已从 ui.jsx 清除（死代码清理）');
     else fail('   ↳ ui.jsx 仍残留 AXIS_GLYPH / TagArrow', `axDef=${axDef} tagArrowDef=${tagArrowDef}`);
+
+    /* v0.4.2 追加死代码门：主标签 / 自评轨相关常量与组件必须彻底清除。
+       ⚠️ 只查「定义」，不查注释里的历史提及（注释说明为何删除是允许的）。 */
+    const primaryGlyphDef = /(?:const|let|var)\s+PRIMARY_GLYPH\s*=/.test(uiSrc);
+    const selfCopyDef = /(?:const|let|var)\s+SELF_RATING_COPY\s*=/.test(uiSrc);
+    const selfOrderDef = /(?:const|let|var)\s+SELF_RATING_ORDER\s*=/.test(uiSrc);
+    const maturityDef = /export function MaturityAxis/.test(uiSrc);
+    const primaryBranch = /if\s*\(\s*primary\s*\)/.test(uiSrc);
+    const systemTierDef = /export function SystemTier/.test(uiSrc);
+    const tagLikeDef = /export function TagLike/.test(uiSrc);
+    const bad = [];
+    if (primaryGlyphDef) bad.push('PRIMARY_GLYPH');
+    if (selfCopyDef) bad.push('SELF_RATING_COPY');
+    if (selfOrderDef) bad.push('SELF_RATING_ORDER');
+    if (maturityDef) bad.push('MaturityAxis');
+    if (primaryBranch) bad.push('if(primary)');
+    if (bad.length === 0) ok('   ↳ v0.4.2 死代码清除：PRIMARY_GLYPH / SELF_RATING_COPY / SELF_RATING_ORDER / MaturityAxis / if(primary) 均 0 命中');
+    else fail('   ↳ v0.4.2 死代码残留', bad.join(', '));
+    if (systemTierDef && tagLikeDef) ok('   ↳ v0.4.2 新组件已就位：SystemTier + TagLike 均已定义');
+    else fail('   ↳ v0.4.2 新组件缺失', `SystemTier=${systemTierDef} TagLike=${tagLikeDef}`);
+    // global.css 死 CSS 清除门：.dp-person-head-row / .dp-person-head-tags 不得残留
+    const deadHeadRow = /\.dp-person-head-row/.test(css);
+    const deadHeadTags = /\.dp-person-head-tags/.test(css);
+    if (!deadHeadRow && !deadHeadTags) ok('   ↳ v0.4.2 global.css 死 CSS 清除：.dp-person-head-row / .dp-person-head-tags 均 0 命中');
+    else fail('   ↳ v0.4.2 global.css 死 CSS 残留', `row=${deadHeadRow} tags=${deadHeadTags}`);
+    // TagLike 焦点环已在 global.css 落地
+    if (/\.dp-like:focus-visible/.test(css)) ok('   ↳ v0.4.2 .dp-like:focus-visible 焦点环已落地');
+    else fail('   ↳ v0.4.2 .dp-like:focus-visible 缺失');
   }
 
   // ④ 图表颜色编码：单序列柱状图必须单色（品牌蓝）；分类色板只留给多序列折线。

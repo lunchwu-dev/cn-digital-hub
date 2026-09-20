@@ -100,7 +100,7 @@ export function emptyCopy(selected) {
     const memberCount = TAG_DICT.filter((t) => t.status === 'active' && GROUP_OF[t.id] === g).length;
     return {
       title,
-      desc: `「${g}」这个分组目前还没有人登记。词表已预留该分组的 ${memberCount} 个标签，等待第一位贡献者——这类空档本身也是部门能力盘点的一个信号。`,
+      desc: `「${g}」这个分组目前还没有成员。该分组已预留 ${memberCount} 个技能标签，暂无成员的标签落在此分组——这是能力盘点可关注的一处空档。`,
     };
   }
 
@@ -242,7 +242,7 @@ export default function TagBrowse({ id }) {
           <PageEmpty
             compact
             title="还没有选择标签"
-            desc="在上方选择一个或多个标签，这里会列出相关的人。结果按姓名排序，不按任何贡献度排名。"
+            desc="在上方选择一个或多个标签，这里会列出相关的人。结果按姓名排序，不按任何贡献度排名。标签来自系统数据抽取与人才盘点。"
           />
         ) : results.length === 0 ? (
           (() => {
@@ -300,7 +300,7 @@ export default function TagBrowse({ id }) {
       </Panel>
 
       <div style={{ marginTop: 16, fontSize: 12, color: c.text3, lineHeight: 1.7 }}>
-        结果按姓名排序，不做任何基于贡献度的排序 · 反查页只负责「找到人」，判断人的成熟度请进入个人主页查看。
+        结果按姓名排序，不做任何基于档位的排序 · 反查页只负责「找到人」；标签档位来自系统数据抽取与人才盘点，可在个人主页查看。
       </div>
 
       {/* 已归档标签 · 历史引用仍可见，不再可选（P1-4 / 规范 C.4：合并永远可见，可审计） */}
