@@ -9,7 +9,13 @@
 
 export const META = {
   department: 'Decathlon China · Digital 部门',
-  portalName: 'Digital 门户',
+  /* v0.6 站点更名：「Digital 公告栏 / Digital Bulletin」。
+     ★ 这里是站点名的**唯一权威来源** —— 顶栏字标与副标、页脚、AgentPanel 底部、
+       ArticleDetail 页脚都读这两个字段，改这一处即全站同步。
+     ⚠️ 唯一的例外是 `portal/index.html` 的 <title>：那是静态 HTML，读不到 META，
+        故由 smoke 的「标题与 META 同源」门守卫二者一致，防止改了一处漏另一处。 */
+  portalName: 'Digital 公告栏',
+  portalNameEn: 'Digital Bulletin',
   owner: 'Digital 部门运营组 · 周敏',
   updated: '2026-09-17 18:40',
   watermark: 'Decathlon Digital · 内部资料 · 请勿外传',

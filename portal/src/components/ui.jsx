@@ -258,12 +258,33 @@ export function ContentMeta({ owner, updated, note, style }) {
 export function BrandSymbol({ size = 40, color, muted = false }) {
   const c = useT();
   const stroke = color || (muted ? c.textDisabled : c.brand);
+  /* v0.6：图形由抽象的「同心圆 + 十字准星」改为**公告栏**（announcement board）——
+     圆角板面 + 顶部挂条 + 两颗图钉 + 两行公告正文。
+     为什么改：站点更名为「Digital 公告栏 / Digital Bulletin」，原符号（同心圆 + 准星）
+     与该语义没有任何对应关系，属于「图标与名称不对应」。新图形沿用同一套
+     1.5px 单色描边语言，缩到 20px（页脚）仍能辨出「被钉住的公告板」。
+     muted 的落点也随图形调整：旧图有外圆可单独淡化，新图没有，
+     故改为对整个 svg 施加 opacity（语义不变：淡化的装饰性标识）。 */
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true">
-      <circle cx="24" cy="24" r="20" stroke={stroke} strokeWidth="1.5" opacity={muted ? 0.5 : 0.25} />
-      <circle cx="24" cy="24" r="12" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M24 4v8M24 36v8M4 24h8M36 24h8" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="24" cy="24" r="3" fill={stroke} />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      fill="none"
+      aria-hidden="true"
+      opacity={muted ? 0.5 : 1}
+    >
+      {/* 板面 */}
+      <rect x="7" y="11" width="34" height="27" rx="3" stroke={stroke} strokeWidth="1.5" />
+      {/* 顶部挂条：把板面分成「栏头 / 正文」两段 */}
+      <path d="M7 19h34" stroke={stroke} strokeWidth="1.5" />
+      {/* 两颗图钉（压在板面上沿）。
+          r 由 2 提到 3：**这是看了 30px 实际渲染后改的** —— r=2 时图钉完全融进上边框，
+          放大截图里根本看不出「被钉住」，而图钉恰恰是「公告栏」最有辨识度的一笔。 */}
+      <circle cx="16" cy="11" r="3" fill={stroke} />
+      <circle cx="32" cy="11" r="3" fill={stroke} />
+      {/* 公告正文两行 */}
+      <path d="M13 26h13M13 31.5h20" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

@@ -2828,6 +2828,27 @@ async function main() {
   if (cardF && rowF) ok('可点卡片/列表行有键盘焦点环（:focus-visible）');
   else fail('可点卡片/列表行有键盘焦点环', `.dp-card=${cardF} .dp-row=${rowF}`);
 
+  /* ③c v0.6 新增：站点名「双处同源」门 —— <title> 必须等于 META.portalName · portalNameEn。
+     起因（这是本次更名唯一的结构性隐患）：站点名有两个落点，顶栏/页脚/AgentPanel 都读
+     `src/data/mock.js` 的 META，而 `index.html` 的 <title> 是**静态 HTML、读不到 META**。
+     改名时极易只改一处 —— 于是把「两处字面量」变成一条会红的断言，而不是靠注释提醒。
+     与门⑫ 同一手法：宁可让测试吵，也不要留下无声漂移。
+     （双处都改才能绿：只改 META → 红；只改 <title> → 同一门也红。） */
+  {
+    const html = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
+    const title = (html.match(/<title>([^<]*)<\/title>/) || [])[1] || '';
+    const expect = `${MOCK.META.portalName} · ${MOCK.META.portalNameEn}`;
+    if (title === expect) {
+      ok('v0.6 站点名双处同源：dist/index.html 的 <title> 与 META.portalName · portalNameEn 一致', title);
+    } else {
+      fail('v0.6 站点名双处同源（<title> vs META）', `title="${title}" 期望 "${expect}"`);
+    }
+    // 图标也必须真的进了产物（内联 data URI 的公告栏图形；外链图标文件在 file:// 下会 404）
+    const iconOk = /rel="icon"/.test(html) && /data:image\/svg\+xml/.test(html);
+    if (iconOk) ok('   ↳ 站点图标已内联进 dist/index.html（data URI，无外部请求）');
+    else fail('   ↳ 站点图标未内联进 index.html', `rel=icon:${/rel="icon"/.test(html)} dataURI:${/data:image\/svg\+xml/.test(html)}`);
+  }
+
   // ③b v0.4.3 个人主页专用栅格（等宽两栏 .dp-g-duo）+ ≤900px 塌缩（不复用 .dp-g-article）
   //   v0.4.3：个人主页楼层 3 由「非对称 .dp-g-profile（1.85fr/1fr）」改回「等宽双栏 .dp-g-duo（1fr/1fr）」。
   //   .dp-g-profile 定义按设计令牌规范 §「考古」要求**保留在 CSS 里**（定义不删、仅移出使用点，

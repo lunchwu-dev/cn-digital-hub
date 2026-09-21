@@ -22,7 +22,11 @@
 #   退出码：有未通过 或 sha 漂移 → 非 0
 #
 # 用法：bash tests/mutation.sh
-#   环境变量：NODE_BIN / NODE_PATH / DP_CHROME / DP_GEOM_PORT
+#   环境变量：NODE_BIN / NODE_PATH / DP_CHROME / DP_GEOM_PORT / MUT_ONLY
+#     MUT_ONLY —— 空格分隔的变异编号（按 id 的首个词精确匹配，如 "M13 M14"），
+#       **只跑指定几条**。用途：整跑 25 条耗时较长，本机宿主会在 ~13 分钟处回收进程
+#       （实测整跑在 M20 被 SIGKILL，退出码 137，且还原 trap 未执行、源码留在变异态）。
+#       分块跑即可绕开；收尾的 sha256 校验仍然针对**全部** TARGETS，不受过滤影响。
 # =============================================================================
 set -u
 
@@ -172,15 +176,31 @@ while IFS=$'\t' read -r id file gate expectRed; do
   else
     "$NODE" tests/smoke.cjs > "$TMPD/mut_smoke.txt" 2>&1 || true
     msum="$(grep -E '合计 [0-9]+ 项断言，通过 [0-9]+，失败 [0-9]+' "$TMPD/mut_smoke.txt" | tail -1 || true)"
+    # ★ 无汇总行 = 这次 smoke **根本没跑起来**（崩溃 / 被宿主回收），**不等于断言没变红**。
+    #   把两者混为一谈，就是把「测试自身崩了」误报成「空转断言」——本项目最忌讳的误归因。
+    #   实测教训：单次整跑 25 条时，M7 曾出现 `(no total)` 并被记成「未变红 ✗」，
+    #   而同一批里 M8~M19 全部正常 —— 说明那是运行期故障，不是断言失效。
+    #   故：重试一次；仍无汇总行，就明确记「smoke 未跑起来（结论未知）」，不得写成「未变红」。
+    if [ -z "$msum" ]; then
+      echo "      ⚠ smoke 未产出汇总行 → 重试一次（常见诱因：资源紧张 / 进程被宿主回收）"
+      sleep 3
+      "$NODE" tests/smoke.cjs > "$TMPD/mut_smoke_retry.txt" 2>&1 || true
+      msum="$(grep -E '合计 [0-9]+ 项断言，通过 [0-9]+，失败 [0-9]+' "$TMPD/mut_smoke_retry.txt" | tail -1 || true)"
+      if [ -n "$msum" ]; then cp -f "$TMPD/mut_smoke_retry.txt" "$TMPD/mut_smoke.txt"; fi
+    fi
     mfail="$(printf '%s' "$msum" | sed -E 's/.*失败 ([0-9]+).*/\1/')"
     if [ -n "$msum" ] && [ "$mfail" != "0" ] && grep -qF "$expectRed" <(grep '^FAIL' "$TMPD/mut_smoke.txt"); then
       echo "[OK] $id → 断言变红 ✓   ($msum)"
       PASS=$((PASS + 1))
       printf 'PASS  %s  —— 按预期变红  %s\n' "$id" "$msum" >> "$SUMMARY"
-    else
-      echo "[!!] $id → 断言未变红 ✗   (${msum:-no total})"
+    elif [ -z "$msum" ]; then
+      echo "[!!] $id → smoke 未跑起来（重试后仍无汇总行）—— 结论未知，不得记为「未变红」"
       FAILN=$((FAILN + 1))
-      printf 'FAIL  %s  —— 断言未变红（空转风险！）  %s\n' "$id" "${msum:-no total}" >> "$SUMMARY"
+      printf 'FAIL  %s  —— smoke 未跑起来（重试后仍无汇总行）→ 结论未知\n' "$id" >> "$SUMMARY"
+    else
+      echo "[!!] $id → 断言未变红 ✗   ($msum)"
+      FAILN=$((FAILN + 1))
+      printf 'FAIL  %s  —— 断言未变红（空转风险！）  %s\n' "$id" "$msum" >> "$SUMMARY"
     fi
   fi
 
@@ -189,7 +209,7 @@ while IFS=$'\t' read -r id file gate expectRed; do
     echo "[!] $id —— 还原后与快照不一致（cmp 失败），中止。"
     exit 1
   fi
-done < <("$NODE" -e 'const {MUTATIONS}=require("./tests/_mutations.data.cjs");for(const m of MUTATIONS)process.stdout.write([m.id,m.file,m.gate||"",m.expectRed].join("\t")+"\n")')
+done < <("$NODE" -e 'const {MUTATIONS}=require("./tests/_mutations.data.cjs");const only=(process.env.MUT_ONLY||"").split(/\s+/).filter(Boolean);const sel=only.length?MUTATIONS.filter(m=>only.includes(m.id.split(" ")[0])):MUTATIONS;for(const m of sel)process.stdout.write([m.id,m.file,m.gate||"",m.expectRed].join("\t")+"\n")')
 
 # ── 4) 收尾：干净重建 + smoke + 还原完整性 + sha 校验 ─────────────────────────
 echo ""

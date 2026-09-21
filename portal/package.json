@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.3.0",
   "type": "module",
-  "description": "迪卡侬中国 · Digital 部门内部门户 · 高保真可交互原型（React 18 + Ant Design 5 + Vite）",
+  "description": "迪卡侬中国 · Digital 公告栏（Digital Bulletin）· 高保真可交互原型（React 18 + Ant Design 5 + Vite）",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

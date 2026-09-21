@@ -31,8 +31,8 @@ const AGENT_HINT_KEY = 'dp_agent_hint_seen';
 
 const TOUR_STEPS = [
   {
-    title: '欢迎来到 Digital 门户',
-    description: '这里是迪卡侬中国 Digital 部门的内部信息与工具入口。顶栏横向导航即可到达七个主频道，没有侧边栏。',
+    title: `欢迎来到 ${META.portalName}`,
+    description: `${META.portalName}是迪卡侬中国 Digital 部门的内部信息与工具入口。顶栏横向导航即可到达七个主频道，没有侧边栏。`,
   },
   {
     title: '全局搜索（快捷键 /）',

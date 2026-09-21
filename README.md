@@ -1,9 +1,10 @@
-# Decathlon China Digital · 部门数字门户（公告栏）
+# Digital 公告栏（Digital Bulletin）· Decathlon China Digital
 
 > 面向迪卡侬中国 Digital 部门（50–200 人）的内部 Web 门户**产品方案 + 可交互高保真原型**。
-> 本仓库为 **v0.1 方案原型**，数据全部为示意数据，不连接任何真实系统。
+> 站点自 v0.6 起更名为 **Digital 公告栏 / Digital Bulletin**（原名「部门数字门户」）。
+> 数据全部为示意数据，不连接任何真实系统。
 
-[![version](https://img.shields.io/badge/version-v0.1-3643BA)](https://github.com/lunchwu-dev/github/releases/tag/v0.1)
+[![version](https://img.shields.io/badge/version-v0.6-3643BA)](https://github.com/lunchwu-dev/cn-digital-hub/releases/tag/v0.6)
 
 ---
 

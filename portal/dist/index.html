@@ -4,7 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light" />
-    <title>Decathlon Digital · 部门门户</title>
+    <!-- v0.6 站点更名：Digital 公告栏 / Digital Bulletin。
+         ⚠️ 这里是静态 HTML，读不到 src/data/mock.js 的 META.portalName —— 二者的一致性
+            由 tests/smoke.cjs 的「标题与 META 同源」门守卫，改名时必须同时改这两处。 -->
+    <title>Digital 公告栏 · Digital Bulletin</title>
+    <meta
+      name="description"
+      content="迪卡侬中国 Digital 部门的内部信息与工具入口 —— Digital 公告栏。"
+    />
+    <!-- 站点图标：与 src/components/ui.jsx 的 <BrandSymbol> 同一套「公告栏」图形
+         （板面 + 挂条 + 两颗图钉 + 两行公告）。
+         刻意用内联 data URI 而非外链 .svg 文件：交付物必须能在 file:// 下
+         **零外部请求**打开，多一个图标文件就多一处 404 风险。
+         描边在图标尺寸下加到 3（源里是 1.5），否则 16px 渲染会糊成一团。 -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' fill='none'%3E%3Crect x='7' y='11' width='34' height='27' rx='3' stroke='%233643ba' stroke-width='3'/%3E%3Cpath d='M7 19h34' stroke='%233643ba' stroke-width='3'/%3E%3Ccircle cx='16' cy='11' r='4' fill='%233643ba'/%3E%3Ccircle cx='32' cy='11' r='4' fill='%233643ba'/%3E%3Cpath d='M13 26h13M13 31.5h20' stroke='%233643ba' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
     <script defer src="./assets/index.js"></script>
     <link rel="stylesheet" href="./assets/style.css">
   </head>

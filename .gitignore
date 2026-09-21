@@ -126,6 +126,10 @@ vite.config.js.timestamp-*.mjs
 # ── 交付组装与截图的工作区（截图成品在 outputs/delivery-*/ 内）──
 /portal/shots_next/
 
+# shots/ 是**交付截图**目录（30 张正片入库），但 `_` 前缀的是人工复核用的
+# 一次性放大裁切图（如 _brand-topbar.png，4× 放大看图标细节），与探针同理不入库。
+/portal/shots/_*.png
+
 # 交付说明的草稿副本 —— 正式版在 outputs/delivery-*/交付说明.md
 /portal/_delivnote.md
 

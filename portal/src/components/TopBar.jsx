@@ -24,6 +24,7 @@ import {
 import { useT } from '../theme';
 import { BrandSymbol } from './ui';
 import { NAV, go } from '../router';
+import { META } from '../data/mock';
 
 const NAV_ICON = {
   home: HomeOutlined,
@@ -43,6 +44,10 @@ const NOTICES = [
 
 export default function TopBar({ activeKey, onOpenSearch, noticeCount = 3, refs = {} }) {
   const c = useT();
+  // 字标两段式配色：按第一个空格把站点名切成「主词 / 余下」。
+  // 站点名里没有空格时 nameRest 为空串，整串走主色段（不会渲染空的浅色 span）。
+  const [nameHead, ...nameTail] = META.portalName.split(' ');
+  const nameRest = nameTail.join(' ');
 
   const noticePanel = (
     <div style={{ width: 268 }}>
@@ -72,15 +77,19 @@ export default function TopBar({ activeKey, onOpenSearch, noticeCount = 3, refs 
   return (
     <header className="dp-topbar">
       <div className="dp-container dp-topbar-inner">
-        {/* Logo：品牌几何符号仅用于页头 */}
+        {/* Logo：公告栏图形符号仅用于页头 */}
         <div className="dp-logo">
           <BrandSymbol size={30} color={c.darkText1} />
           {/* dp-logo-text：T4（768–940）只隐藏文字保留符号，故文字块必须有类名 */}
           <div className="dp-logo-text" style={{ lineHeight: 1.15 }}>
+            {/* v0.6 更名：字标与副标都取 META（站点名唯一权威来源），不再硬编码。
+                两段式配色沿用旧字标的手法：首词深色主色、其余浅一号 —— 不用字符串切割
+                硬编码位置，而是按第一个空格分段；名字若只有一个词则整体走前段。 */}
             <div style={{ color: c.darkText1, fontSize: 15, fontWeight: 500, letterSpacing: '0.02em' }}>
-              DECATHLON <span style={{ color: c.darkText2, fontWeight: 400 }}>Digital</span>
+              {nameHead}
+              {nameRest ? <span style={{ color: c.darkText2, fontWeight: 400 }}> {nameRest}</span> : null}
             </div>
-            <div className="dp-logo-sub">中国 · 部门门户</div>
+            <div className="dp-logo-sub">{META.portalNameEn}</div>
           </div>
         </div>
 

@@ -23,16 +23,23 @@
 const TARGETS = {
   'src/pages/Workspace.jsx': 'F449B1E5E7FD2273414DF81B4F098F8C09DC8933C524F2CCE5FA2D9BE04B0431',
   'src/pages/DemandNew.jsx': '135AB61F269C16D291AEC7A56F3851B409492FCCFB63C06BE181FD7CBE4CF8A5',
-  'src/data/mock.js': '15BB8CCE2B776D5B2DD9934144D473234F0E8947AB0C385926E29A5137308231',
+  'src/data/mock.js': '6EEF28ADA14F43F5CD7A174631714AEA026802BD0B53B01AE763739F3501114F',
   'src/global.css': '6AADD4F8F14A3C27BEA15ABEA5E43AECCD0ED91A5DEC5A3FC5DF39E3FD6EF813',
   'src/components/demand/ScaleChips.jsx': 'B63C695F6A21AD633E7EF7B52025E03C41AD5971661C2C488CA202D87A2BECF1',
   'src/components/demand/BrdAssistantCard.jsx': 'CFDCEBC83DDADDF331DC748AB07256B28E6803F9E431D859E69C187C2A7BC2E6',
-  'src/components/ui.jsx': '7DBCE2DBACEB3F3486881D684BF892107ED3EE558F9A17ED9B15F5E55E285D7A',
+  // v0.6 更名（Digital 公告栏 / Digital Bulletin）：mock.js（META.portalName/portalNameEn）
+  //   与 ui.jsx（BrandSymbol 改为公告栏图形）重算。global.css / PersonProfile.jsx 未动。
+  'src/components/ui.jsx': '5C7DB6103E0558B977EE1E546396E9A5743CD25905BD90DA22FED9A83800A23D',
   // v0.5 新增（见 --print-sha 列表里的说明）
   // v0.5.1 起更新：mock.js / global.css / PersonProfile.jsx 三个文件因 v0.5.1 返修而重算
   //   （mock.js 加 rows/inWindow/outside 分区；global.css 修 .dp-gantt-cell 基底圆角
   //   4px→0；PersonProfile.jsx 图例补任务条主色 + 零交出行处置 + extra 文案）。
   'src/pages/PersonProfile.jsx': '5B14720BCE9E84B44C6D84E3BA1E0145779CDB534EA7341E56C0985D3B609266',
+  // v0.6 新增：index.html 也纳入基线。
+  //   它是 Vite 的入口，且**站点名/图标的第二落点就在它里面**（静态 HTML，读不到 META）——
+  //   v0.6 的两条新门（M25/M26）都打在它身上，故必须像 src 一样被快照/还原/收尾比对。
+  //   （文件的快照集合是「TARGETS 键 ∪ MUTATIONS 的 file」动态取并，故这里加了即生效。）
+  'index.html': '3F00F28C9240D5EE5D966D1505CE16F9B789AAAC6CD9E191A1E5F40B9D034234',
 };
 
 /* 每个变异：file + 精确 find/replace + 期望变红的断言子串 */
@@ -312,6 +319,32 @@ const MUTATIONS = [
     find: "  const mine = JIRA_ISSUES.filter((i) => i.assigneeId === key && i.status !== 'done');",
     repl: "  const mine = JIRA_ISSUES.filter((i) => i.assigneeId === key && i.status !== 'done' && i.status !== 'blocked');",
     expectRed: 'v0.5 blocked 整行仍渲染',
+  },
+
+  /* ================= v0.6 追加：为「站点名双处同源」与「图标已内联」两条新门各配一条证伪 =================
+     为什么必须补：v0.6 的两条新门是本轮**唯一**新增的断言，而它们守的正是「改名只改一处」这个
+     结构性隐患。新增断言后不证明它能被打红，就等于给套件又加了一条可能是装饰性的门 ——
+     这正是本项目反复吃亏的那类问题（见 M19 的注释）。
+     两条都打在 index.html 上（站点名的第二落点 / 图标的唯一落点）。 */
+
+  /* M25 · <title> 与 META 脱钩：把标题改成只留英文名（= 模拟「改了 META 忘了改 <title>」）
+     期望：门「站点名双处同源」变红。 */
+  {
+    id: 'M25 v0.6 站点名两处脱钩（<title> 与 META.portalName 不一致）',
+    file: 'index.html',
+    find: '<title>Digital 公告栏 · Digital Bulletin</title>',
+    repl: '<title>Digital Bulletin</title>',
+    expectRed: '站点名双处同源',
+  },
+
+  /* M26 · 站点图标被摘掉：rel="icon" 改掉 → 内联图标门变红
+     （标题仍正确，故只应打红「图标已内联」这一门，与 M25 各自独立。） */
+  {
+    id: 'M26 v0.6 站点图标缺失（<link rel="icon"> 被摘掉）',
+    file: 'index.html',
+    find: 'rel="icon"',
+    repl: 'rel="nope"',
+    expectRed: '站点图标未内联',
   },
 ];
 
