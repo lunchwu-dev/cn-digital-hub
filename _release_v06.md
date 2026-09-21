@@ -126,15 +126,19 @@
 
 ### 6.1 GitHub
 - 仓库：`https://github.com/lunchwu-dev/cn-digital-hub`
-- tag `v0.6` + release（见本页头部链接）
+- 提交 `a04369c`（品牌层 + 新增门）推送到 `main`；tag `v0.6` + release，
+  release 附件为 `Digital-Bulletin-v0.6.zip`。
+- **版本史补记**：远端此前只有 `v0.1` / `v0.2` 两个 tag —— 本地虽已有
+  `v0.3` / `v0.4.1` / `v0.4.3`，但从未推送；`v0.5` / `v0.5.1` 则只提交未打 tag。
+  故远端在 v0.6 之前的 tag 序列是断的。本次只推 `v0.6`，历史 tag 是否补推另行确认。
 - 仓库门面（README）顺带修正：
   - 版本徽章原本指向 `github.com/lunchwu-dev/github`（**该仓库不存在**）→ 改为 `cn-digital-hub`；
   - 徽章版本 `v0.1` → `v0.6`；标题改为以「Digital 公告栏（Digital Bulletin）」开头。
 
-### 6.2 WorkBuddy 应用 —— ⚠️ 本次未能发布
+### 6.2 WorkBuddy 应用 —— ⚠️ 未能发布（两次尝试均被工具注册表阻断）
 
-**发布未完成，原因如实说明：本次会话的工具注册表里没有 `workbuddy_sites_deploy`**，
-调用直接返回：
+**发布未完成，原因如实说明：会话的工具注册表里没有 `workbuddy_sites_deploy`**，
+调用直接返回（2026-09-21 第二轮发布尝试复验，结果相同）：
 
 ```
 Tool "workbuddy_sites_deploy" is not available in the current environment or configuration.
@@ -175,3 +179,52 @@ Tool "workbuddy_sites_deploy" is not available in the current environment or con
   `t-high → rgb(107,120,212)`，与格内数字、档位 class **逐格对拍**。
 
 交付物 `portal/dist/` 为干净重建，可直接双击打开（IIFE、无 `type="module"`、零外部请求）。
+
+---
+
+## 8. 发布轮次中的一次真事故：源码被残留变异进程污染
+
+这一节记录发布前排查到的问题，因为它直接影响「交付物是否可信」。
+
+### 现象
+
+第二轮发布前重跑验证，smoke 由记录中的 **209/209 变成 196/209**，13 条失败全部集中在
+「个人标签矩阵」段落：`.dp-tag-floor` 未找到、标签卡命中 0 张、档位条数量 0。
+
+### 误判与纠正
+
+第一反应是「jsdom 环境差异」——但**同一份 dist 用真实 Chrome 渲染，标签卡是 8 张、完全正常**，
+说明产物本身没问题。真因不在测试环境，而在**源码**。
+
+### 真因
+
+上一轮会话启动的 `tests/mutation.sh`（07:49:34）**从未结束**：
+- `.mutation.lock` 一直在，锁内 PID 54 存活；
+- 它在某条变异上注入 `src/pages/PersonProfile.jsx` 后，**起了 headless Chrome
+  （`--remote-debugging-port=9346`）做几何探针，该 Chrome 未退出**，脚本就这样僵死了
+  5 分钟以上没有任何输出；
+- 期间我基于**被注入变异的源码**做了一次构建 —— 于是有了 196/209 这个假失败，
+  且三次构建的产物 sha 各不相同（每次构建时源码状态不同）。
+
+### 处置
+
+| 步骤 | 动作 | 结果 |
+|---|---|---|
+| 1 | 终止僵死的 PID 54、清理残留 Chrome | 进程清空 |
+| 2 | 以变异脚本自己的运行前快照 `tests/.mutbase/` 为基线逐文件比对 | 9 个目标文件中**仅 `PersonProfile.jsx` 漂移**，其余 8 个已在基线 |
+| 3 | 用 `.mutbase/PersonProfile.jsx` 覆盖回源文件 | `DIFF_COUNT=0`；`git status` 中该文件不再出现（= 与 HEAD 一致），**反证恢复正确** |
+| 4 | 删除过期 `.mutation.lock`，在干净源码上 `rm -rf dist && vite build` | 构建通过 |
+| 5 | 重跑 smoke | **209/209，EXIT=0** |
+
+### 结论与教训
+
+- **`.mutbase` 快照机制救了这次发布**：它把「污染范围」从「整个 src 目录」收敛到「1 个文件」，
+  且给出了可判定的恢复依据。没有它，只能靠人眼比对 9 个文件。
+- **变异测试的失败症状会伪装成「测试环境问题」或「代码坏了」**。本次两个候选误判
+  （jsdom 环境 / 真实回归）都被排除后，才指向「有个进程还在改源码」。
+  判定顺序应当是：**先看有没有活跃的测试进程和锁文件，再看产物是否正确渲染**。
+- 教训可复用：**发布前先确认工作区没有存活的测试/构建进程**（`ps` + 锁文件），
+  再构建、再验证、再提交。本次若不做这一步，commit `a04369c` 里就会带进一个被注入变异的
+  `PersonProfile.jsx`。
+- 该 Chrome 探针的端口由脚本分配（9346），与上一轮记录的 9347 不同 —— 说明端口是动态的，
+  不能靠固定端口号来判断「有没有残留」。
