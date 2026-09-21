@@ -48,7 +48,7 @@ export default function BrdAssistantCard({ advice, prompts = brdPrompts }) {
      用户不会因为「想问一句」而丢掉刚拿到的建议。 */
   const ask = (p) => {
     const hit = brdScriptedReplies.find((r) => r.match.some((m) => p.includes(m)));
-    setMessages((m) => [...m, { role: 'user', text: p }, { role: 'agent', text: hit ? hit.text : brdAgentIntro }]);
+    setMessages((m) => [...m.filter((x) => !x.pending), { role: 'user', text: p }, { role: 'agent', text: hit ? hit.text : brdAgentIntro }]);
   };
 
   return (

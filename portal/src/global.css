@@ -731,6 +731,9 @@ body {
   .dp-demand-side {
     display: contents;
   }
+  .dp-demand-promise {
+    order: 1;
+  }
   .dp-demand-assistant {
     order: 2;
   }
